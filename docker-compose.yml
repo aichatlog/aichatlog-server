@@ -1,0 +1,13 @@
+services:
+  aichatlog-server:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - aichatlog-data:/app/data
+    environment:
+      - AICHATLOG_TOKEN=${AICHATLOG_TOKEN:-}
+    restart: unless-stopped
+
+volumes:
+  aichatlog-data:
