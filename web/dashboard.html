@@ -121,8 +121,10 @@ tr.data-row { cursor: pointer; }
         <th onclick="setSort('title')">Title</th>
         <th onclick="setSort('project')">Project</th>
         <th>Source</th>
+        <th>Model</th>
         <th onclick="setSort('message_count')">Msgs</th>
         <th onclick="setSort('word_count')">Words</th>
+        <th>Tokens</th>
         <th>Status</th>
       </tr>
     </thead>
@@ -204,13 +206,17 @@ async function loadConversations() {
   tbody.replaceChildren();
 
   if (!rows.length) {
-    const tr = el('tr', {}, [el('td', { colspan: '7', class: 'empty' }, 'No conversations found')]);
+    const tr = el('tr', {}, [el('td', { colspan: '9', class: 'empty' }, 'No conversations found')]);
     tbody.appendChild(tr);
     document.getElementById('pagination').replaceChildren();
     return;
   }
 
   rows.forEach(c => {
+    const modelShort = (c.model || '').replace('claude-', '').replace('-20250514', '').replace('-20251001', '');
+    const tokensStr = (c.total_input_tokens || c.total_output_tokens)
+      ? ((c.total_input_tokens/1000).toFixed(1) + 'k/' + (c.total_output_tokens/1000).toFixed(1) + 'k')
+      : '\u2014';
     const tr = el('tr', { class: 'data-row' }, [
       el('td', { style: 'white-space:nowrap;font-family:var(--mono);font-size:13px;color:var(--text-secondary)' }, (c.started_at || '').slice(0, 10)),
       (() => {
@@ -227,8 +233,10 @@ async function loadConversations() {
         td.appendChild(el('span', { class: 'source-badge' }, c.source_type));
         return td;
       })(),
+      el('td', { style: 'font-family:var(--mono);font-size:11px;color:var(--text-secondary)' }, modelShort || '\u2014'),
       el('td', { style: 'font-family:var(--mono);font-size:13px;text-align:center' }, String(c.message_count)),
       el('td', { style: 'font-family:var(--mono);font-size:13px;text-align:center' }, String(c.word_count)),
+      el('td', { style: 'font-family:var(--mono);font-size:11px;text-align:center;color:var(--text-secondary)' }, tokensStr),
       (() => {
         const td = document.createElement('td');
         td.appendChild(el('span', { class: 'badge badge-' + c.status }, c.status));
@@ -288,19 +296,33 @@ async function showDetail(id) {
 
   const meta = document.getElementById('modalMeta');
   meta.replaceChildren();
-  const parts = [
-    (c.started_at || '').slice(0, 10),
-  ];
-  parts.forEach(t => meta.appendChild(el('span', {}, t)));
+  // Time range
+  const startDate = (c.started_at || '').replace('T', ' ').slice(0, 19);
+  const endDate = (c.ended_at || '').replace('T', ' ').slice(0, 19);
+  const timeStr = endDate ? (startDate + ' → ' + endDate.slice(11)) : startDate;
+  meta.appendChild(el('span', {}, timeStr));
+
   const srcSpan = document.createElement('span');
   srcSpan.appendChild(el('span', { class: 'source-badge' }, c.source_type));
   meta.appendChild(srcSpan);
   if (c.project) meta.appendChild(el('span', {}, 'Project: ' + c.project));
   if (c.model) meta.appendChild(el('span', {}, 'Model: ' + c.model));
-  meta.appendChild(el('span', {}, c.message_count + ' messages / ' + c.word_count + ' words'));
+  meta.appendChild(el('span', {}, c.message_count + ' msgs / ' + c.word_count + ' words'));
+  if (c.total_input_tokens || c.total_output_tokens) {
+    meta.appendChild(el('span', {}, 'Tokens: ' + c.total_input_tokens + ' in / ' + c.total_output_tokens + ' out'));
+  }
   const statusSpan = document.createElement('span');
   statusSpan.appendChild(el('span', { class: 'badge badge-' + c.status }, c.status));
   meta.appendChild(statusSpan);
+  // Source-specific metadata
+  if (c.metadata && c.metadata !== '{}') {
+    try {
+      const md = typeof c.metadata === 'string' ? JSON.parse(c.metadata) : c.metadata;
+      Object.entries(md).forEach(([k, v]) => {
+        meta.appendChild(el('span', { style: 'font-size:11px;color:var(--text-tertiary)' }, k + ': ' + v));
+      });
+    } catch(e) {}
+  }
 
   const container = document.getElementById('modalMessages');
   container.replaceChildren();

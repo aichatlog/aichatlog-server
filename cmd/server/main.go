@@ -15,6 +15,7 @@ import (
 	"github.com/aichatlog/aichatlog/server/internal/api"
 	"github.com/aichatlog/aichatlog/server/internal/config"
 	"github.com/aichatlog/aichatlog/server/internal/llm"
+	"github.com/aichatlog/aichatlog/server/internal/mcp"
 	"github.com/aichatlog/aichatlog/server/internal/output"
 	"github.com/aichatlog/aichatlog/server/internal/processor"
 	"github.com/aichatlog/aichatlog/server/internal/storage"
@@ -22,6 +23,12 @@ import (
 )
 
 func main() {
+	// Check for MCP subcommand before parsing flags
+	if len(os.Args) > 1 && os.Args[1] == "mcp" {
+		runMCP()
+		return
+	}
+
 	port := flag.Int("port", 8080, "server port")
 	dbPath := flag.String("db", "aichatlog.db", "SQLite database path")
 	dataDir := flag.String("data", "data", "directory for storing files")
@@ -132,5 +139,35 @@ func main() {
 
 	if err := server.ListenAndServe(); err != http.ErrServerClosed {
 		log.Fatalf("Server error: %v", err)
+	}
+}
+
+// runMCP starts the MCP server over stdin/stdout for AI assistant integration.
+func runMCP() {
+	dbPath := "aichatlog.db"
+	dataDir := "data"
+	if v := os.Getenv("AICHATLOG_DB"); v != "" {
+		dbPath = v
+	}
+	if v := os.Getenv("AICHATLOG_DATA"); v != "" {
+		dataDir = v
+	}
+	// Also accept --db flag after "mcp" subcommand
+	mcpFlags := flag.NewFlagSet("mcp", flag.ExitOnError)
+	mcpDB := mcpFlags.String("db", dbPath, "SQLite database path")
+	mcpData := mcpFlags.String("data", dataDir, "data directory")
+	mcpFlags.Parse(os.Args[2:])
+
+	store, err := storage.New(*mcpDB, *mcpData)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to open database: %v\n", err)
+		os.Exit(1)
+	}
+	defer store.Close()
+
+	srv := mcp.NewServer(store, os.Stdin, os.Stdout)
+	if err := srv.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "MCP server error: %v\n", err)
+		os.Exit(1)
 	}
 }
