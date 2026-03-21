@@ -40,6 +40,7 @@ func NewHandler(store *storage.Store, token string, dashboardHTML []byte, cfgMgr
 	mux.HandleFunc("POST /api/conversations", h.handleCreateConversation)
 	mux.HandleFunc("POST /api/conversations/batch", h.handleBatchCreate)
 	mux.HandleFunc("GET /api/stats", h.handleStats)
+	mux.HandleFunc("GET /api/projects", h.handleListProjects)
 	mux.HandleFunc("GET /api/extractions", h.handleListExtractions)
 	mux.HandleFunc("GET /api/conversations/{id}/extractions", h.handleGetExtractions)
 	mux.HandleFunc("GET /api/config", h.handleGetConfig)
@@ -273,6 +274,18 @@ func (h *Handler) handleGetExtractions(w http.ResponseWriter, r *http.Request) {
 		extractions = []storage.ExtractionRow{}
 	}
 	jsonResponse(w, extractions)
+}
+
+func (h *Handler) handleListProjects(w http.ResponseWriter, r *http.Request) {
+	projects, err := h.store.ListProjects()
+	if err != nil {
+		jsonError(w, "Internal error", http.StatusInternalServerError)
+		return
+	}
+	if projects == nil {
+		projects = []storage.ProjectRow{}
+	}
+	jsonResponse(w, projects)
 }
 
 func (h *Handler) handleStats(w http.ResponseWriter, r *http.Request) {

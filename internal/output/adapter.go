@@ -22,6 +22,7 @@ type Config struct {
 	Adapter string         `json:"adapter"`
 	Local   *LocalConfig   `json:"local,omitempty"`
 	FNS     *FNSConfig     `json:"fns,omitempty"`
+	Git     *GitConfig     `json:"git,omitempty"`
 	Webhook *WebhookConfig `json:"webhook,omitempty"`
 }
 
@@ -41,6 +42,11 @@ func NewAdapter(cfg *Config) (Adapter, error) {
 			return nil, fmt.Errorf("fns config is required")
 		}
 		return NewFNSAdapter(cfg.FNS), nil
+	case "git":
+		if cfg.Git == nil {
+			return nil, fmt.Errorf("git config is required")
+		}
+		return NewGitAdapter(cfg.Git), nil
 	case "webhook":
 		if cfg.Webhook == nil {
 			return nil, fmt.Errorf("webhook config is required")

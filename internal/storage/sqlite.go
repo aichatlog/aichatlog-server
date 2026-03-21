@@ -972,6 +972,49 @@ func (s *Store) RecordSync(conversationID, adapter, path, contentHash string) er
 	return err
 }
 
+// ── Project Operations ──
+
+// ProjectRow represents aggregated project statistics.
+type ProjectRow struct {
+	Project      string `json:"project"`
+	Conversations int   `json:"conversations"`
+	TotalWords   int    `json:"total_words"`
+	TotalTokensIn  int  `json:"total_tokens_in"`
+	TotalTokensOut int  `json:"total_tokens_out"`
+	LastActivity string `json:"last_activity"`
+}
+
+// ListProjects returns all projects with conversation counts and last activity.
+func (s *Store) ListProjects() ([]ProjectRow, error) {
+	rows, err := s.db.Query(`
+		SELECT project,
+			COUNT(*) as conversations,
+			SUM(word_count) as total_words,
+			SUM(total_input_tokens) as total_tokens_in,
+			SUM(total_output_tokens) as total_tokens_out,
+			MAX(started_at) as last_activity
+		FROM conversations
+		WHERE project != ''
+		GROUP BY project
+		ORDER BY last_activity DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []ProjectRow
+	for rows.Next() {
+		var p ProjectRow
+		if err := rows.Scan(&p.Project, &p.Conversations, &p.TotalWords,
+			&p.TotalTokensIn, &p.TotalTokensOut, &p.LastActivity); err != nil {
+			return nil, err
+		}
+		results = append(results, p)
+	}
+	return results, rows.Err()
+}
+
 // ── Extraction Operations ──
 
 // ExtractionRow represents a row from the extractions table.

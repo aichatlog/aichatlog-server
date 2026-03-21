@@ -86,6 +86,21 @@ func NewAdapter(cfg *Config) (Adapter, error) {
 			return nil, fmt.Errorf("openai config is required")
 		}
 		return NewOpenAIAdapter(cfg.OpenAI), nil
+	case "ollama":
+		ollamaCfg := cfg.OpenAI
+		if ollamaCfg == nil {
+			ollamaCfg = &OpenAIConfig{}
+		}
+		if ollamaCfg.BaseURL == "" {
+			ollamaCfg.BaseURL = "http://localhost:11434/v1"
+		}
+		if ollamaCfg.Model == "" {
+			ollamaCfg.Model = "llama3.2"
+		}
+		if ollamaCfg.BigModel == "" {
+			ollamaCfg.BigModel = ollamaCfg.Model
+		}
+		return NewOpenAIAdapter(ollamaCfg), nil
 	case "", "none":
 		return nil, nil
 	default:
