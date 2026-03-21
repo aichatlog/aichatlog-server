@@ -15,51 +15,65 @@ import (
 
 // ── Data Types ──
 
-// ConversationObject matches the plugin's ConversationObject protocol (v1).
+// ConversationObject matches the plugin's ConversationObject protocol.
 type ConversationObject struct {
-	Version      int       `json:"version"`
-	Source       string    `json:"source"`
-	Device       string    `json:"device"`
-	SessionID    string    `json:"session_id"`
-	Title        string    `json:"title"`
-	Date         string    `json:"date"`
-	Project      string    `json:"project"`
-	ProjectPath  string    `json:"project_path"`
-	Model        string    `json:"model,omitempty"`
-	MessageCount int       `json:"message_count"`
-	WordCount    int       `json:"word_count"`
-	ContentHash  string    `json:"content_hash"`
-	Messages     []Message `json:"messages"`
+	Version           int                    `json:"version"`
+	Source            string                 `json:"source"`
+	Device            string                 `json:"device"`
+	SessionID         string                 `json:"session_id"`
+	Title             string                 `json:"title"`
+	Date              string                 `json:"date"`
+	StartedAt         string                 `json:"started_at,omitempty"`
+	EndedAt           string                 `json:"ended_at,omitempty"`
+	Project           string                 `json:"project"`
+	ProjectPath       string                 `json:"project_path"`
+	Model             string                 `json:"model,omitempty"`
+	MessageCount      int                    `json:"message_count"`
+	WordCount         int                    `json:"word_count"`
+	ContentHash       string                 `json:"content_hash"`
+	HasCode           bool                   `json:"has_code,omitempty"`
+	TotalInputTokens  int                    `json:"total_input_tokens,omitempty"`
+	TotalOutputTokens int                    `json:"total_output_tokens,omitempty"`
+	Metadata          map[string]interface{} `json:"metadata,omitempty"`
+	Messages          []Message              `json:"messages"`
 }
 
 // Message represents a single message in a conversation.
 type Message struct {
-	Role      string `json:"role"`
-	Content   string `json:"content"`
-	TimeStr   string `json:"time_str"`
-	IsContext bool   `json:"is_context"`
-	Seq       int    `json:"seq"`
+	Role         string `json:"role"`
+	Content      string `json:"content"`
+	TimeStr      string `json:"time_str"`
+	Timestamp    string `json:"timestamp,omitempty"`
+	IsContext    bool   `json:"is_context"`
+	Seq          int    `json:"seq"`
+	Model        string `json:"model,omitempty"`
+	InputTokens  int    `json:"input_tokens,omitempty"`
+	OutputTokens int    `json:"output_tokens,omitempty"`
 }
 
 // ConversationRow represents a row from the conversations table.
 type ConversationRow struct {
-	ID           string  `json:"id"`
-	SessionID    string  `json:"session_id"`
-	SourceType   string  `json:"source_type"`
-	Device       string  `json:"device"`
-	Title        string  `json:"title"`
-	Project      string  `json:"project"`
-	ProjectPath  string  `json:"project_path"`
-	Model        string  `json:"model"`
-	StartedAt    string  `json:"started_at"`
-	WordCount    int     `json:"word_count"`
-	MessageCount int     `json:"message_count"`
-	ContentHash  string  `json:"content_hash"`
-	HasCode      bool    `json:"has_code"`
-	Status       string  `json:"status"`
-	CreatedAt    string  `json:"created_at"`
-	UpdatedAt    string  `json:"updated_at"`
-	SyncedAt     *string `json:"synced_at,omitempty"`
+	ID                string  `json:"id"`
+	SessionID         string  `json:"session_id"`
+	SourceType        string  `json:"source_type"`
+	Device            string  `json:"device"`
+	Title             string  `json:"title"`
+	Project           string  `json:"project"`
+	ProjectPath       string  `json:"project_path"`
+	Model             string  `json:"model"`
+	StartedAt         string  `json:"started_at"`
+	EndedAt           string  `json:"ended_at"`
+	WordCount         int     `json:"word_count"`
+	MessageCount      int     `json:"message_count"`
+	ContentHash       string  `json:"content_hash"`
+	HasCode           bool    `json:"has_code"`
+	TotalInputTokens  int     `json:"total_input_tokens"`
+	TotalOutputTokens int     `json:"total_output_tokens"`
+	Metadata          string  `json:"metadata"`
+	Status            string  `json:"status"`
+	CreatedAt         string  `json:"created_at"`
+	UpdatedAt         string  `json:"updated_at"`
+	SyncedAt          *string `json:"synced_at,omitempty"`
 }
 
 // MessageRow represents a row from the messages table.
@@ -71,6 +85,9 @@ type MessageRow struct {
 	Timestamp      string `json:"timestamp"`
 	Seq            int    `json:"seq"`
 	IsContext      bool   `json:"is_context"`
+	Model          string `json:"model"`
+	InputTokens    int    `json:"input_tokens"`
+	OutputTokens   int    `json:"output_tokens"`
 }
 
 // ConversationDetail is a conversation with its messages.
@@ -102,22 +119,27 @@ type Stats struct {
 
 // SyncRequest is the v2 sync protocol request.
 type SyncRequest struct {
-	Version      int       `json:"version"`
-	SyncMode     string    `json:"sync_mode"` // "full", "delta", "check"
-	Source       string    `json:"source"`
-	Device       string    `json:"device"`
-	SessionID    string    `json:"session_id"`
-	Title        string    `json:"title"`
-	Date         string    `json:"date"`
-	Project      string    `json:"project"`
-	ProjectPath  string    `json:"project_path"`
-	Model        string    `json:"model,omitempty"`
-	MessageCount int       `json:"message_count"`
-	WordCount    int       `json:"word_count"`
-	ContentHash  string    `json:"content_hash"`
-	HasCode      *bool     `json:"has_code,omitempty"`
-	DeltaFromSeq int       `json:"delta_from_seq,omitempty"`
-	Messages     []Message `json:"messages,omitempty"`
+	Version           int                    `json:"version"`
+	SyncMode          string                 `json:"sync_mode"` // "full", "delta", "check"
+	Source            string                 `json:"source"`
+	Device            string                 `json:"device"`
+	SessionID         string                 `json:"session_id"`
+	Title             string                 `json:"title"`
+	Date              string                 `json:"date"`
+	StartedAt         string                 `json:"started_at,omitempty"`
+	EndedAt           string                 `json:"ended_at,omitempty"`
+	Project           string                 `json:"project"`
+	ProjectPath       string                 `json:"project_path"`
+	Model             string                 `json:"model,omitempty"`
+	MessageCount      int                    `json:"message_count"`
+	WordCount         int                    `json:"word_count"`
+	ContentHash       string                 `json:"content_hash"`
+	HasCode           *bool                  `json:"has_code,omitempty"`
+	TotalInputTokens  int                    `json:"total_input_tokens,omitempty"`
+	TotalOutputTokens int                    `json:"total_output_tokens,omitempty"`
+	Metadata          map[string]interface{} `json:"metadata,omitempty"`
+	DeltaFromSeq      int                    `json:"delta_from_seq,omitempty"`
+	Messages          []Message              `json:"messages,omitempty"`
 }
 
 // SyncResponse is the v2 sync protocol response.
@@ -131,20 +153,30 @@ type SyncResponse struct {
 
 // ToConversationObject converts a SyncRequest to a ConversationObject for Upsert.
 func (r *SyncRequest) ToConversationObject() *ConversationObject {
+	hasCode := false
+	if r.HasCode != nil {
+		hasCode = *r.HasCode
+	}
 	return &ConversationObject{
-		Version:      r.Version,
-		Source:       r.Source,
-		Device:       r.Device,
-		SessionID:    r.SessionID,
-		Title:        r.Title,
-		Date:         r.Date,
-		Project:      r.Project,
-		ProjectPath:  r.ProjectPath,
-		Model:        r.Model,
-		MessageCount: r.MessageCount,
-		WordCount:    r.WordCount,
-		ContentHash:  r.ContentHash,
-		Messages:     r.Messages,
+		Version:           r.Version,
+		Source:            r.Source,
+		Device:            r.Device,
+		SessionID:         r.SessionID,
+		Title:             r.Title,
+		Date:              r.Date,
+		StartedAt:         r.StartedAt,
+		EndedAt:           r.EndedAt,
+		Project:           r.Project,
+		ProjectPath:       r.ProjectPath,
+		Model:             r.Model,
+		MessageCount:      r.MessageCount,
+		WordCount:         r.WordCount,
+		ContentHash:       r.ContentHash,
+		HasCode:           hasCode,
+		TotalInputTokens:  r.TotalInputTokens,
+		TotalOutputTokens: r.TotalOutputTokens,
+		Metadata:          r.Metadata,
+		Messages:          r.Messages,
 	}
 }
 
@@ -203,6 +235,7 @@ func (s *Store) migrate() error {
 
 	migrations := []func(*sql.Tx) error{
 		s.migrateV1,
+		s.migrateV2,
 	}
 
 	for i := current; i < len(migrations); i++ {
@@ -347,6 +380,41 @@ func (s *Store) migrateV1(tx *sql.Tx) error {
 	return nil
 }
 
+// migrateV2 adds metadata, token, and timestamp columns.
+func (s *Store) migrateV2(tx *sql.Tx) error {
+	// conversations: add ended_at, total_input_tokens, total_output_tokens, metadata
+	convCols := []string{
+		"ALTER TABLE conversations ADD COLUMN ended_at TEXT DEFAULT ''",
+		"ALTER TABLE conversations ADD COLUMN total_input_tokens INTEGER DEFAULT 0",
+		"ALTER TABLE conversations ADD COLUMN total_output_tokens INTEGER DEFAULT 0",
+		"ALTER TABLE conversations ADD COLUMN metadata TEXT DEFAULT '{}'",
+	}
+	for _, stmt := range convCols {
+		if _, err := tx.Exec(stmt); err != nil {
+			// Column may already exist if re-running
+			if !strings.Contains(err.Error(), "duplicate column") {
+				return err
+			}
+		}
+	}
+
+	// messages: add model, input_tokens, output_tokens
+	msgCols := []string{
+		"ALTER TABLE messages ADD COLUMN model TEXT DEFAULT ''",
+		"ALTER TABLE messages ADD COLUMN input_tokens INTEGER DEFAULT 0",
+		"ALTER TABLE messages ADD COLUMN output_tokens INTEGER DEFAULT 0",
+	}
+	for _, stmt := range msgCols {
+		if _, err := tx.Exec(stmt); err != nil {
+			if !strings.Contains(err.Error(), "duplicate column") {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 // ── Conversation Operations ──
 
 // generateID creates a deterministic conversation ID from source, device, and session_id.
@@ -375,11 +443,27 @@ func (s *Store) Upsert(conv *ConversationObject) error {
 
 	id := generateID(source, conv.Device, conv.SessionID)
 	now := time.Now().Format("2006-01-02T15:04:05")
-	hasCode := detectHasCode(conv.Messages)
 
-	startedAt := conv.Date
+	hasCode := conv.HasCode
+	if !hasCode {
+		hasCode = detectHasCode(conv.Messages)
+	}
+
+	startedAt := conv.StartedAt
+	if startedAt == "" {
+		startedAt = conv.Date
+	}
 	if startedAt == "" {
 		startedAt = now
+	}
+
+	endedAt := conv.EndedAt
+
+	metadataJSON := "{}"
+	if conv.Metadata != nil {
+		if b, err := json.Marshal(conv.Metadata); err == nil {
+			metadataJSON = string(b)
+		}
 	}
 
 	tx, err := s.db.Begin()
@@ -392,19 +476,24 @@ func (s *Store) Upsert(conv *ConversationObject) error {
 	_, err = tx.Exec(`
 		INSERT INTO conversations
 			(id, session_id, source_type, device, title, project, project_path,
-			 model, started_at, word_count, message_count, content_hash, has_code,
+			 model, started_at, ended_at, word_count, message_count, content_hash,
+			 has_code, total_input_tokens, total_output_tokens, metadata,
 			 created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(source_type, device, session_id) DO UPDATE SET
 			title=excluded.title,
 			project=excluded.project,
 			project_path=excluded.project_path,
 			model=excluded.model,
 			started_at=excluded.started_at,
+			ended_at=excluded.ended_at,
 			word_count=excluded.word_count,
 			message_count=excluded.message_count,
 			content_hash=excluded.content_hash,
 			has_code=excluded.has_code,
+			total_input_tokens=excluded.total_input_tokens,
+			total_output_tokens=excluded.total_output_tokens,
+			metadata=excluded.metadata,
 			status=CASE
 				WHEN conversations.status='ignored' THEN 'ignored'
 				WHEN conversations.content_hash != excluded.content_hash THEN 'received'
@@ -412,8 +501,9 @@ func (s *Store) Upsert(conv *ConversationObject) error {
 			END,
 			updated_at=excluded.updated_at
 	`, id, conv.SessionID, source, conv.Device, conv.Title,
-		conv.Project, conv.ProjectPath, conv.Model, startedAt,
-		conv.WordCount, conv.MessageCount, conv.ContentHash, hasCode,
+		conv.Project, conv.ProjectPath, conv.Model, startedAt, endedAt,
+		conv.WordCount, conv.MessageCount, conv.ContentHash, boolToInt(hasCode),
+		conv.TotalInputTokens, conv.TotalOutputTokens, metadataJSON,
 		now, now)
 	if err != nil {
 		return fmt.Errorf("upsert conversation: %w", err)
@@ -426,8 +516,9 @@ func (s *Store) Upsert(conv *ConversationObject) error {
 
 	if len(conv.Messages) > 0 {
 		stmt, err := tx.Prepare(`
-			INSERT INTO messages (conversation_id, role, content, timestamp, seq, is_context)
-			VALUES (?, ?, ?, ?, ?, ?)
+			INSERT INTO messages (conversation_id, role, content, timestamp, seq, is_context,
+				model, input_tokens, output_tokens)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`)
 		if err != nil {
 			return fmt.Errorf("prepare message insert: %w", err)
@@ -439,7 +530,12 @@ func (s *Store) Upsert(conv *ConversationObject) error {
 			if m.IsContext {
 				isCtx = 1
 			}
-			if _, err := stmt.Exec(id, m.Role, m.Content, m.TimeStr, m.Seq, isCtx); err != nil {
+			ts := m.Timestamp
+			if ts == "" {
+				ts = m.TimeStr
+			}
+			if _, err := stmt.Exec(id, m.Role, m.Content, ts, m.Seq, isCtx,
+				m.Model, m.InputTokens, m.OutputTokens); err != nil {
 				return fmt.Errorf("insert message seq %d: %w", m.Seq, err)
 			}
 		}
@@ -542,8 +638,9 @@ func (s *Store) applyDelta(req *SyncRequest, id string) error {
 	// Insert new messages
 	if len(req.Messages) > 0 {
 		stmt, err := tx.Prepare(`
-			INSERT INTO messages (conversation_id, role, content, timestamp, seq, is_context)
-			VALUES (?, ?, ?, ?, ?, ?)
+			INSERT INTO messages (conversation_id, role, content, timestamp, seq, is_context,
+				model, input_tokens, output_tokens)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`)
 		if err != nil {
 			return err
@@ -555,7 +652,12 @@ func (s *Store) applyDelta(req *SyncRequest, id string) error {
 			if m.IsContext {
 				isCtx = 1
 			}
-			if _, err := stmt.Exec(id, m.Role, m.Content, m.TimeStr, m.Seq, isCtx); err != nil {
+			ts := m.Timestamp
+			if ts == "" {
+				ts = m.TimeStr
+			}
+			if _, err := stmt.Exec(id, m.Role, m.Content, ts, m.Seq, isCtx,
+				m.Model, m.InputTokens, m.OutputTokens); err != nil {
 				return fmt.Errorf("insert message seq %d: %w", m.Seq, err)
 			}
 		}
@@ -567,20 +669,32 @@ func (s *Store) applyDelta(req *SyncRequest, id string) error {
 		hasCode = *req.HasCode
 	}
 
-	startedAt := req.Date
+	startedAt := req.StartedAt
+	if startedAt == "" {
+		startedAt = req.Date
+	}
 	if startedAt == "" {
 		startedAt = now
 	}
 
+	metadataJSON := "{}"
+	if req.Metadata != nil {
+		if b, err := json.Marshal(req.Metadata); err == nil {
+			metadataJSON = string(b)
+		}
+	}
+
 	_, err = tx.Exec(`
 		UPDATE conversations SET
-			title=?, project=?, project_path=?, model=?, started_at=?,
+			title=?, project=?, project_path=?, model=?, started_at=?, ended_at=?,
 			word_count=?, message_count=?, content_hash=?, has_code=?,
+			total_input_tokens=?, total_output_tokens=?, metadata=?,
 			status=CASE WHEN status='ignored' THEN 'ignored' ELSE 'received' END,
 			updated_at=?
 		WHERE id=?
-	`, req.Title, req.Project, req.ProjectPath, req.Model, startedAt,
+	`, req.Title, req.Project, req.ProjectPath, req.Model, startedAt, req.EndedAt,
 		req.WordCount, req.MessageCount, req.ContentHash, boolToInt(hasCode),
+		req.TotalInputTokens, req.TotalOutputTokens, metadataJSON,
 		now, id)
 	if err != nil {
 		return fmt.Errorf("update conversation: %w", err)
@@ -596,30 +710,35 @@ func boolToInt(b bool) int {
 	return 0
 }
 
-// Get retrieves a single conversation by ID (or session_id).
-func (s *Store) Get(id string) (*ConversationRow, error) {
-	row := s.db.QueryRow(`
-		SELECT id, session_id, source_type, device, title, project, project_path,
-		       model, started_at, word_count, message_count, content_hash, has_code,
-		       status, created_at, updated_at
-		FROM conversations
-		WHERE id = ? OR session_id = ?
-	`, id, id)
+// convColumns is the standard SELECT column list for conversations.
+const convColumns = `id, session_id, source_type, device, title, project, project_path,
+	model, started_at, ended_at, word_count, message_count, content_hash, has_code,
+	total_input_tokens, total_output_tokens, metadata, status, created_at, updated_at`
 
+func scanConversationRow(scanner interface{ Scan(...interface{}) error }) (*ConversationRow, error) {
 	var c ConversationRow
 	var hasCode int
-	err := row.Scan(&c.ID, &c.SessionID, &c.SourceType, &c.Device, &c.Title,
-		&c.Project, &c.ProjectPath, &c.Model, &c.StartedAt,
+	err := scanner.Scan(&c.ID, &c.SessionID, &c.SourceType, &c.Device, &c.Title,
+		&c.Project, &c.ProjectPath, &c.Model, &c.StartedAt, &c.EndedAt,
 		&c.WordCount, &c.MessageCount, &c.ContentHash, &hasCode,
+		&c.TotalInputTokens, &c.TotalOutputTokens, &c.Metadata,
 		&c.Status, &c.CreatedAt, &c.UpdatedAt)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
 	if err != nil {
 		return nil, err
 	}
 	c.HasCode = hasCode != 0
 	return &c, nil
+}
+
+// Get retrieves a single conversation by ID (or session_id).
+func (s *Store) Get(id string) (*ConversationRow, error) {
+	row := s.db.QueryRow(
+		"SELECT "+convColumns+" FROM conversations WHERE id = ? OR session_id = ?", id, id)
+	c, err := scanConversationRow(row)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return c, err
 }
 
 // GetDetail retrieves a conversation with all its messages.
@@ -643,7 +762,8 @@ func (s *Store) GetDetail(id string) (*ConversationDetail, error) {
 // GetMessages retrieves all messages for a conversation, ordered by seq.
 func (s *Store) GetMessages(conversationID string) ([]MessageRow, error) {
 	rows, err := s.db.Query(`
-		SELECT id, conversation_id, role, content, timestamp, seq, is_context
+		SELECT id, conversation_id, role, content, timestamp, seq, is_context,
+			model, input_tokens, output_tokens
 		FROM messages
 		WHERE conversation_id = ?
 		ORDER BY seq
@@ -658,7 +778,8 @@ func (s *Store) GetMessages(conversationID string) ([]MessageRow, error) {
 		var m MessageRow
 		var isCtx int
 		if err := rows.Scan(&m.ID, &m.ConversationID, &m.Role, &m.Content,
-			&m.Timestamp, &m.Seq, &isCtx); err != nil {
+			&m.Timestamp, &m.Seq, &isCtx,
+			&m.Model, &m.InputTokens, &m.OutputTokens); err != nil {
 			return nil, err
 		}
 		m.IsContext = isCtx != 0
@@ -669,9 +790,7 @@ func (s *Store) GetMessages(conversationID string) ([]MessageRow, error) {
 
 // List returns conversations matching the query parameters.
 func (s *Store) List(p QueryParams) ([]ConversationRow, error) {
-	query := `SELECT id, session_id, source_type, device, title, project, project_path,
-		model, started_at, word_count, message_count, content_hash, has_code,
-		status, created_at, updated_at FROM conversations`
+	query := `SELECT ` + convColumns + ` FROM conversations`
 	var args []interface{}
 	var conditions []string
 
@@ -723,16 +842,11 @@ func (s *Store) List(p QueryParams) ([]ConversationRow, error) {
 
 	var results []ConversationRow
 	for rows.Next() {
-		var c ConversationRow
-		var hasCode int
-		if err := rows.Scan(&c.ID, &c.SessionID, &c.SourceType, &c.Device, &c.Title,
-			&c.Project, &c.ProjectPath, &c.Model, &c.StartedAt,
-			&c.WordCount, &c.MessageCount, &c.ContentHash, &hasCode,
-			&c.Status, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		c, err := scanConversationRow(rows)
+		if err != nil {
 			return nil, err
 		}
-		c.HasCode = hasCode != 0
-		results = append(results, c)
+		results = append(results, *c)
 	}
 	return results, rows.Err()
 }
