@@ -36,6 +36,7 @@ func NewHandler(store *storage.Store, token string, dashboardHTML []byte, cfgMgr
 	mux.HandleFunc("GET /api/conversations", h.handleListConversations)
 	mux.HandleFunc("GET /api/conversations/{id}", h.handleGetConversation)
 	mux.HandleFunc("GET /api/conversations/{id}/messages", h.handleGetMessages)
+	mux.HandleFunc("POST /api/conversations/sync", h.handleSync)
 	mux.HandleFunc("POST /api/conversations", h.handleCreateConversation)
 	mux.HandleFunc("POST /api/conversations/batch", h.handleBatchCreate)
 	mux.HandleFunc("GET /api/stats", h.handleStats)
@@ -106,6 +107,29 @@ func (h *Handler) handleCreateConversation(w http.ResponseWriter, r *http.Reques
 		"session_id": conv.SessionID,
 		"message":    "Conversation received",
 	})
+}
+
+func (h *Handler) handleSync(w http.ResponseWriter, r *http.Request) {
+	var req storage.SyncRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if req.SessionID == "" {
+		jsonError(w, "session_id is required", http.StatusBadRequest)
+		return
+	}
+
+	resp, err := h.store.Sync(&req)
+	if err != nil {
+		log.Printf("Error syncing %s: %v", req.SessionID, err)
+		jsonError(w, "Internal error", http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("Sync %s: mode=%s action=%s", req.SessionID, req.SyncMode, resp.Action)
+	jsonResponse(w, resp)
 }
 
 func (h *Handler) handleBatchCreate(w http.ResponseWriter, r *http.Request) {

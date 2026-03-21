@@ -100,6 +100,54 @@ type Stats struct {
 	Total    int `json:"total"`
 }
 
+// SyncRequest is the v2 sync protocol request.
+type SyncRequest struct {
+	Version      int       `json:"version"`
+	SyncMode     string    `json:"sync_mode"` // "full", "delta", "check"
+	Source       string    `json:"source"`
+	Device       string    `json:"device"`
+	SessionID    string    `json:"session_id"`
+	Title        string    `json:"title"`
+	Date         string    `json:"date"`
+	Project      string    `json:"project"`
+	ProjectPath  string    `json:"project_path"`
+	Model        string    `json:"model,omitempty"`
+	MessageCount int       `json:"message_count"`
+	WordCount    int       `json:"word_count"`
+	ContentHash  string    `json:"content_hash"`
+	HasCode      *bool     `json:"has_code,omitempty"`
+	DeltaFromSeq int       `json:"delta_from_seq,omitempty"`
+	Messages     []Message `json:"messages,omitempty"`
+}
+
+// SyncResponse is the v2 sync protocol response.
+type SyncResponse struct {
+	OK                 bool   `json:"ok"`
+	Action             string `json:"action"` // "created", "updated", "unchanged", "need_full"
+	SessionID          string `json:"session_id"`
+	ServerHash         string `json:"server_hash,omitempty"`
+	ServerMessageCount int    `json:"server_message_count"`
+}
+
+// ToConversationObject converts a SyncRequest to a ConversationObject for Upsert.
+func (r *SyncRequest) ToConversationObject() *ConversationObject {
+	return &ConversationObject{
+		Version:      r.Version,
+		Source:       r.Source,
+		Device:       r.Device,
+		SessionID:    r.SessionID,
+		Title:        r.Title,
+		Date:         r.Date,
+		Project:      r.Project,
+		ProjectPath:  r.ProjectPath,
+		Model:        r.Model,
+		MessageCount: r.MessageCount,
+		WordCount:    r.WordCount,
+		ContentHash:  r.ContentHash,
+		Messages:     r.Messages,
+	}
+}
+
 // ── Store ──
 
 // Store manages SQLite storage.
@@ -398,6 +446,154 @@ func (s *Store) Upsert(conv *ConversationObject) error {
 	}
 
 	return tx.Commit()
+}
+
+// Sync handles the v2 conditional sync protocol.
+// Returns a SyncResponse indicating what action was taken.
+func (s *Store) Sync(req *SyncRequest) (*SyncResponse, error) {
+	source := req.Source
+	if source == "" {
+		source = "claude-code"
+	}
+	id := generateID(source, req.Device, req.SessionID)
+
+	existing, err := s.Get(id)
+	if err != nil {
+		return nil, fmt.Errorf("lookup existing: %w", err)
+	}
+
+	resp := &SyncResponse{OK: true, SessionID: req.SessionID}
+
+	switch req.SyncMode {
+	case "check":
+		if existing == nil {
+			resp.Action = "need_full"
+			return resp, nil
+		}
+		if existing.ContentHash == req.ContentHash {
+			resp.Action = "unchanged"
+			resp.ServerHash = existing.ContentHash
+			resp.ServerMessageCount = existing.MessageCount
+			return resp, nil
+		}
+		resp.Action = "need_full"
+		resp.ServerHash = existing.ContentHash
+		resp.ServerMessageCount = existing.MessageCount
+		return resp, nil
+
+	case "delta":
+		if existing == nil {
+			resp.Action = "need_full"
+			return resp, nil
+		}
+		if err := s.applyDelta(req, id); err != nil {
+			return nil, fmt.Errorf("apply delta: %w", err)
+		}
+		resp.Action = "updated"
+		resp.ServerHash = req.ContentHash
+		resp.ServerMessageCount = req.MessageCount
+		return resp, nil
+
+	default: // "full" or empty
+		if err := s.upsertFromSync(req, id); err != nil {
+			return nil, fmt.Errorf("full upsert: %w", err)
+		}
+		resp.ServerHash = req.ContentHash
+		resp.ServerMessageCount = req.MessageCount
+		if existing == nil {
+			resp.Action = "created"
+		} else {
+			resp.Action = "updated"
+		}
+		return resp, nil
+	}
+}
+
+// upsertFromSync performs a full upsert from a SyncRequest, using has_code from plugin if available.
+func (s *Store) upsertFromSync(req *SyncRequest, id string) error {
+	conv := req.ToConversationObject()
+	// If plugin provided has_code, we still go through Upsert which calls detectHasCode.
+	// We'll override has_code after if plugin provided it.
+	if err := s.Upsert(conv); err != nil {
+		return err
+	}
+	if req.HasCode != nil {
+		s.db.Exec("UPDATE conversations SET has_code = ? WHERE id = ?", boolToInt(*req.HasCode), id)
+	}
+	return nil
+}
+
+// applyDelta applies incremental messages to an existing conversation.
+func (s *Store) applyDelta(req *SyncRequest, id string) error {
+	now := time.Now().Format("2006-01-02T15:04:05")
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Delete messages from delta_from_seq onward
+	if _, err := tx.Exec("DELETE FROM messages WHERE conversation_id = ? AND seq >= ?",
+		id, req.DeltaFromSeq); err != nil {
+		return fmt.Errorf("delete old messages: %w", err)
+	}
+
+	// Insert new messages
+	if len(req.Messages) > 0 {
+		stmt, err := tx.Prepare(`
+			INSERT INTO messages (conversation_id, role, content, timestamp, seq, is_context)
+			VALUES (?, ?, ?, ?, ?, ?)
+		`)
+		if err != nil {
+			return err
+		}
+		defer stmt.Close()
+
+		for _, m := range req.Messages {
+			isCtx := 0
+			if m.IsContext {
+				isCtx = 1
+			}
+			if _, err := stmt.Exec(id, m.Role, m.Content, m.TimeStr, m.Seq, isCtx); err != nil {
+				return fmt.Errorf("insert message seq %d: %w", m.Seq, err)
+			}
+		}
+	}
+
+	// Update conversation metadata
+	hasCode := detectHasCode(req.Messages)
+	if req.HasCode != nil {
+		hasCode = *req.HasCode
+	}
+
+	startedAt := req.Date
+	if startedAt == "" {
+		startedAt = now
+	}
+
+	_, err = tx.Exec(`
+		UPDATE conversations SET
+			title=?, project=?, project_path=?, model=?, started_at=?,
+			word_count=?, message_count=?, content_hash=?, has_code=?,
+			status=CASE WHEN status='ignored' THEN 'ignored' ELSE 'received' END,
+			updated_at=?
+		WHERE id=?
+	`, req.Title, req.Project, req.ProjectPath, req.Model, startedAt,
+		req.WordCount, req.MessageCount, req.ContentHash, boolToInt(hasCode),
+		now, id)
+	if err != nil {
+		return fmt.Errorf("update conversation: %w", err)
+	}
+
+	return tx.Commit()
+}
+
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 // Get retrieves a single conversation by ID (or session_id).
