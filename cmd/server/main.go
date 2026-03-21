@@ -103,7 +103,12 @@ func main() {
 	}
 
 	// Initialize handler
-	handler := api.NewHandler(store, *token, web.DashboardHTML, cfgMgr)
+	// Pass extractor as interface (nil-safe)
+	var extractorIface api.Extractor
+	if extractor != nil {
+		extractorIface = extractor
+	}
+	handler := api.NewHandler(store, *token, web.DashboardHTML, cfgMgr, extractorIface)
 
 	// Start server
 	addr := fmt.Sprintf(":%d", *port)

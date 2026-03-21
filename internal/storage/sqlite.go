@@ -236,6 +236,7 @@ func (s *Store) migrate() error {
 	migrations := []func(*sql.Tx) error{
 		s.migrateV1,
 		s.migrateV2,
+		s.migrateV3,
 	}
 
 	for i := current; i < len(migrations); i++ {
@@ -259,7 +260,62 @@ func (s *Store) migrate() error {
 			return fmt.Errorf("commit migration %d: %w", i+1, err)
 		}
 	}
+
+	// Post-migration: ensure 'deleted' status is accepted.
+	// For databases created before v3, the CHECK constraint blocks it.
+	// Recreate the table outside any transaction (FK pragma requires it).
+	if err := s.ensureDeletedStatus(); err != nil {
+		return fmt.Errorf("ensure deleted status: %w", err)
+	}
+
 	return nil
+}
+
+// ensureDeletedStatus checks if the conversations table accepts 'deleted' status.
+// If not (old CHECK constraint), recreates the table outside a transaction.
+func (s *Store) ensureDeletedStatus() error {
+	// Test if 'deleted' is accepted
+	_, err := s.db.Exec("INSERT INTO conversations (id, session_id, title, started_at, status) VALUES ('__test_del__','__test_del__','t','t','deleted')")
+	if err == nil {
+		s.db.Exec("DELETE FROM conversations WHERE id = '__test_del__'")
+		return nil // Already supports 'deleted'
+	}
+
+	// Need to recreate table. Disable FK checks.
+	s.db.Exec("PRAGMA foreign_keys = OFF")
+	defer s.db.Exec("PRAGMA foreign_keys = ON")
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	stmts := []string{
+		`ALTER TABLE conversations RENAME TO _conv_old`,
+		`CREATE TABLE conversations (
+			id TEXT PRIMARY KEY, session_id TEXT NOT NULL,
+			source_type TEXT NOT NULL DEFAULT 'claude-code', device TEXT NOT NULL DEFAULT '',
+			title TEXT NOT NULL, project TEXT DEFAULT '', project_path TEXT DEFAULT '',
+			model TEXT DEFAULT '', started_at TEXT NOT NULL, ended_at TEXT DEFAULT '',
+			word_count INTEGER DEFAULT 0, message_count INTEGER DEFAULT 0,
+			content_hash TEXT, has_code INTEGER DEFAULT 0,
+			total_input_tokens INTEGER DEFAULT 0, total_output_tokens INTEGER DEFAULT 0,
+			metadata TEXT DEFAULT '{}',
+			status TEXT DEFAULT 'received' CHECK(status IN ('received','synced','failed','ignored','deleted')),
+			created_at TEXT DEFAULT (datetime('now','localtime')),
+			updated_at TEXT DEFAULT (datetime('now','localtime')),
+			UNIQUE(source_type, device, session_id)
+		)`,
+		`INSERT INTO conversations SELECT * FROM _conv_old`,
+		`DROP TABLE _conv_old`,
+	}
+	for _, stmt := range stmts {
+		if _, err := tx.Exec(stmt); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 // migrateV1 creates the full schema from scratch.
@@ -280,7 +336,7 @@ func (s *Store) migrateV1(tx *sql.Tx) error {
 			message_count  INTEGER DEFAULT 0,
 			content_hash   TEXT,
 			has_code       INTEGER DEFAULT 0,
-			status         TEXT DEFAULT 'received' CHECK(status IN ('received','synced','failed','ignored')),
+			status         TEXT DEFAULT 'received' CHECK(status IN ('received','synced','failed','ignored','deleted')),
 			created_at     TEXT DEFAULT (datetime('now','localtime')),
 			updated_at     TEXT DEFAULT (datetime('now','localtime')),
 			UNIQUE(source_type, device, session_id)
@@ -415,6 +471,25 @@ func (s *Store) migrateV2(tx *sql.Tx) error {
 	return nil
 }
 
+// migrateV3 is a no-op for new databases (migrateV1 already includes 'deleted' in CHECK).
+// For existing databases, the old CHECK constraint prevents writing 'deleted' status.
+// SQLite doesn't support ALTER CHECK, so we recreate the table outside the transaction.
+// This is handled in migrate() with a post-migration step.
+func (s *Store) migrateV3(tx *sql.Tx) error {
+	// Check if we need to recreate (old CHECK without 'deleted')
+	// Try inserting and rolling back to test
+	_, err := tx.Exec("INSERT INTO conversations (id, session_id, title, started_at, status) VALUES ('__test__','__test__','t','t','deleted')")
+	if err != nil {
+		// Old CHECK constraint blocks 'deleted' — need table recreation.
+		// This must be done outside the transaction. Mark for post-migration.
+		// For now, just record the version. The post-migration in migrate() will handle it.
+		return nil
+	}
+	// Clean up test row
+	tx.Exec("DELETE FROM conversations WHERE id = '__test__'")
+	return nil
+}
+
 // ── Conversation Operations ──
 
 // generateID creates a deterministic conversation ID from source, device, and session_id.
@@ -495,7 +570,7 @@ func (s *Store) Upsert(conv *ConversationObject) error {
 			total_output_tokens=excluded.total_output_tokens,
 			metadata=excluded.metadata,
 			status=CASE
-				WHEN conversations.status='ignored' THEN 'ignored'
+				WHEN conversations.status IN ('ignored','deleted') THEN conversations.status
 				WHEN conversations.content_hash != excluded.content_hash THEN 'received'
 				ELSE conversations.status
 			END,
@@ -689,7 +764,7 @@ func (s *Store) applyDelta(req *SyncRequest, id string) error {
 			title=?, project=?, project_path=?, model=?, started_at=?, ended_at=?,
 			word_count=?, message_count=?, content_hash=?, has_code=?,
 			total_input_tokens=?, total_output_tokens=?, metadata=?,
-			status=CASE WHEN status='ignored' THEN 'ignored' ELSE 'received' END,
+			status=CASE WHEN status IN ('ignored','deleted') THEN status ELSE 'received' END,
 			updated_at=?
 		WHERE id=?
 	`, req.Title, req.Project, req.ProjectPath, req.Model, startedAt, req.EndedAt,
@@ -797,6 +872,9 @@ func (s *Store) List(p QueryParams) ([]ConversationRow, error) {
 	if p.Status != "" {
 		conditions = append(conditions, "status = ?")
 		args = append(args, p.Status)
+	} else {
+		// Exclude deleted by default unless explicitly requested
+		conditions = append(conditions, "status != 'deleted'")
 	}
 	if p.Project != "" {
 		conditions = append(conditions, "project = ?")
@@ -970,6 +1048,81 @@ func (s *Store) RecordSync(conversationID, adapter, path, contentHash string) er
 		VALUES (?, ?, ?, ?)
 	`, conversationID, adapter, path, contentHash)
 	return err
+}
+
+// SoftDelete marks a conversation as deleted (soft delete).
+// The record remains in DB to prevent re-sync from plugin.
+func (s *Store) SoftDelete(id string) error {
+	return s.UpdateStatus(id, "deleted")
+}
+
+// UpdateFields updates specific conversation fields (title, project, status).
+type UpdateFieldsParams struct {
+	Title   *string `json:"title,omitempty"`
+	Project *string `json:"project,omitempty"`
+	Status  *string `json:"status,omitempty"`
+}
+
+func (s *Store) UpdateFields(id string, params UpdateFieldsParams) error {
+	now := time.Now().Format("2006-01-02T15:04:05")
+	var sets []string
+	var args []interface{}
+
+	if params.Title != nil {
+		sets = append(sets, "title = ?")
+		args = append(args, *params.Title)
+	}
+	if params.Project != nil {
+		sets = append(sets, "project = ?")
+		args = append(args, *params.Project)
+	}
+	if params.Status != nil {
+		sets = append(sets, "status = ?")
+		args = append(args, *params.Status)
+	}
+	if len(sets) == 0 {
+		return nil
+	}
+
+	sets = append(sets, "updated_at = ?")
+	args = append(args, now, id)
+	query := "UPDATE conversations SET " + strings.Join(sets, ", ") + " WHERE id = ?"
+	_, err := s.db.Exec(query, args...)
+	return err
+}
+
+// ClearExtractions removes all extractions for a conversation (to re-extract).
+func (s *Store) ClearExtractions(conversationID string) error {
+	_, err := s.db.Exec("DELETE FROM extractions WHERE conversation_id = ?", conversationID)
+	return err
+}
+
+// StatsSummary returns extended stats including token and extraction counts.
+type StatsSummary struct {
+	Stats
+	TotalInputTokens  int64 `json:"total_input_tokens"`
+	TotalOutputTokens int64 `json:"total_output_tokens"`
+	TotalWords        int64 `json:"total_words"`
+	ExtractionCount   int   `json:"extraction_count"`
+	ProjectCount      int   `json:"project_count"`
+}
+
+func (s *Store) GetStatsSummary() (*StatsSummary, error) {
+	st, err := s.Stats()
+	if err != nil {
+		return nil, err
+	}
+	summary := &StatsSummary{Stats: *st}
+
+	s.db.QueryRow(`SELECT COALESCE(SUM(total_input_tokens),0), COALESCE(SUM(total_output_tokens),0),
+		COALESCE(SUM(word_count),0) FROM conversations WHERE status != 'deleted'`).
+		Scan(&summary.TotalInputTokens, &summary.TotalOutputTokens, &summary.TotalWords)
+
+	s.db.QueryRow("SELECT COUNT(*) FROM extractions").Scan(&summary.ExtractionCount)
+	s.db.QueryRow("SELECT COUNT(DISTINCT project) FROM conversations WHERE project != '' AND status != 'deleted'").
+		Scan(&summary.ProjectCount)
+
+	return summary, nil
 }
 
 // ── Project Operations ──

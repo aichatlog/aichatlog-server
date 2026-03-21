@@ -11,20 +11,24 @@ import (
 	"github.com/aichatlog/aichatlog/server/internal/storage"
 )
 
+// Extractor is the interface for manual extraction triggers.
+type Extractor interface {
+	ExtractOne(conversationID string) error
+}
+
 // Handler is the main HTTP handler for the aichatlog-server API.
 type Handler struct {
 	store     *storage.Store
 	token     string
 	mux       *http.ServeMux
-	dashboard []byte           // embedded dashboard HTML
+	dashboard []byte
 	cfgMgr    *config.Manager
+	extractor Extractor
 }
 
 // NewHandler creates a new API handler.
-// dashboardHTML may be nil if no dashboard is embedded.
-// cfgMgr may be nil if config API is not needed.
-func NewHandler(store *storage.Store, token string, dashboardHTML []byte, cfgMgr *config.Manager) *Handler {
-	h := &Handler{store: store, token: token, dashboard: dashboardHTML, cfgMgr: cfgMgr}
+func NewHandler(store *storage.Store, token string, dashboardHTML []byte, cfgMgr *config.Manager, extractor Extractor) *Handler {
+	h := &Handler{store: store, token: token, dashboard: dashboardHTML, cfgMgr: cfgMgr, extractor: extractor}
 	mux := http.NewServeMux()
 
 	// Dashboard
@@ -39,7 +43,12 @@ func NewHandler(store *storage.Store, token string, dashboardHTML []byte, cfgMgr
 	mux.HandleFunc("POST /api/conversations/sync", h.handleSync)
 	mux.HandleFunc("POST /api/conversations", h.handleCreateConversation)
 	mux.HandleFunc("POST /api/conversations/batch", h.handleBatchCreate)
+	mux.HandleFunc("DELETE /api/conversations/{id}", h.handleDeleteConversation)
+	mux.HandleFunc("PATCH /api/conversations/{id}", h.handleUpdateConversation)
+	mux.HandleFunc("POST /api/conversations/{id}/extract", h.handleExtractConversation)
+	mux.HandleFunc("POST /api/conversations/{id}/reprocess", h.handleReprocess)
 	mux.HandleFunc("GET /api/stats", h.handleStats)
+	mux.HandleFunc("GET /api/stats/summary", h.handleStatsSummary)
 	mux.HandleFunc("GET /api/projects", h.handleListProjects)
 	mux.HandleFunc("GET /api/extractions", h.handleListExtractions)
 	mux.HandleFunc("GET /api/conversations/{id}/extractions", h.handleGetExtractions)
@@ -53,7 +62,7 @@ func NewHandler(store *storage.Store, token string, dashboardHTML []byte, cfgMgr
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// CORS
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
 	if r.Method == "OPTIONS" {
@@ -274,6 +283,101 @@ func (h *Handler) handleGetExtractions(w http.ResponseWriter, r *http.Request) {
 		extractions = []storage.ExtractionRow{}
 	}
 	jsonResponse(w, extractions)
+}
+
+func (h *Handler) handleDeleteConversation(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	conv, err := h.store.Get(id)
+	if err != nil {
+		jsonError(w, "Internal error", http.StatusInternalServerError)
+		return
+	}
+	if conv == nil {
+		jsonError(w, "Not found", http.StatusNotFound)
+		return
+	}
+	if err := h.store.SoftDelete(conv.ID); err != nil {
+		jsonError(w, "Internal error", http.StatusInternalServerError)
+		return
+	}
+	log.Printf("Soft-deleted conversation %s (%s)", conv.ID, conv.Title)
+	jsonResponse(w, map[string]interface{}{"ok": true, "message": "Conversation deleted"})
+}
+
+func (h *Handler) handleUpdateConversation(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	conv, err := h.store.Get(id)
+	if err != nil {
+		jsonError(w, "Internal error", http.StatusInternalServerError)
+		return
+	}
+	if conv == nil {
+		jsonError(w, "Not found", http.StatusNotFound)
+		return
+	}
+
+	var params storage.UpdateFieldsParams
+	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+		jsonError(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := h.store.UpdateFields(conv.ID, params); err != nil {
+		jsonError(w, "Internal error", http.StatusInternalServerError)
+		return
+	}
+	jsonResponse(w, map[string]interface{}{"ok": true})
+}
+
+func (h *Handler) handleExtractConversation(w http.ResponseWriter, r *http.Request) {
+	if h.extractor == nil {
+		jsonError(w, "LLM extraction not configured", http.StatusNotImplemented)
+		return
+	}
+	id := r.PathValue("id")
+	conv, err := h.store.Get(id)
+	if err != nil {
+		jsonError(w, "Internal error", http.StatusInternalServerError)
+		return
+	}
+	if conv == nil {
+		jsonError(w, "Not found", http.StatusNotFound)
+		return
+	}
+	// Clear existing extractions to allow re-extraction
+	h.store.ClearExtractions(conv.ID)
+	if err := h.extractor.ExtractOne(conv.ID); err != nil {
+		log.Printf("Manual extraction error for %s: %v", conv.ID, err)
+		jsonError(w, "Extraction failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	jsonResponse(w, map[string]interface{}{"ok": true, "message": "Extraction complete"})
+}
+
+func (h *Handler) handleReprocess(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	conv, err := h.store.Get(id)
+	if err != nil {
+		jsonError(w, "Internal error", http.StatusInternalServerError)
+		return
+	}
+	if conv == nil {
+		jsonError(w, "Not found", http.StatusNotFound)
+		return
+	}
+	if err := h.store.UpdateStatus(conv.ID, "received"); err != nil {
+		jsonError(w, "Internal error", http.StatusInternalServerError)
+		return
+	}
+	jsonResponse(w, map[string]interface{}{"ok": true, "message": "Conversation queued for reprocessing"})
+}
+
+func (h *Handler) handleStatsSummary(w http.ResponseWriter, r *http.Request) {
+	summary, err := h.store.GetStatsSummary()
+	if err != nil {
+		jsonError(w, "Internal error", http.StatusInternalServerError)
+		return
+	}
+	jsonResponse(w, summary)
 }
 
 func (h *Handler) handleListProjects(w http.ResponseWriter, r *http.Request) {

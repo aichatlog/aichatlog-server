@@ -90,6 +90,34 @@ tr.data-row { cursor: pointer; }
 .pagination button:hover:not(:disabled) { border-color: var(--accent); }
 .pagination button:disabled { opacity: 0.4; cursor: default; }
 .page-info { border: none; background: none; color: var(--text-secondary); }
+.tab-nav { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+.tab-btn { background: transparent; border: none; color: var(--text-secondary); padding: 8px 16px; cursor: pointer; font-size: 14px; border-radius: var(--radius) var(--radius) 0 0; transition: all 0.15s; }
+.tab-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
+.tab-btn.active { color: var(--accent); border-bottom: 2px solid var(--accent); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+.knowledge-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
+.knowledge-card:hover { border-color: var(--accent); }
+.knowledge-type { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-family: var(--mono); display: inline-block; margin-bottom: 8px; }
+.knowledge-type.tech_solution { background: var(--green-dim); color: var(--green); }
+.knowledge-type.concept { background: var(--orange-dim); color: var(--orange); }
+.knowledge-type.prompt { background: rgba(108,138,255,0.12); color: var(--accent); }
+.knowledge-type.work_log { background: var(--gray-dim); color: var(--gray); }
+.knowledge-title { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+.knowledge-content { font-size: 13px; color: var(--text-secondary); line-height: 1.5; white-space: pre-wrap; }
+.timeline-entry { display: flex; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.timeline-date { font-family: var(--mono); font-size: 12px; color: var(--text-tertiary); white-space: nowrap; min-width: 80px; }
+.timeline-body { flex: 1; }
+.timeline-title { font-weight: 600; font-size: 14px; margin-bottom: 2px; }
+.timeline-desc { font-size: 13px; color: var(--text-secondary); }
+.settings-section { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+.settings-section h3 { font-size: 14px; margin-bottom: 12px; color: var(--text-primary); }
+.settings-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; }
+.settings-key { color: var(--text-secondary); }
+.settings-val { color: var(--text-primary); font-family: var(--mono); }
+.action-btn { background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-secondary); padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+.action-btn:hover { border-color: var(--accent); color: var(--accent); }
+.action-btn.danger:hover { border-color: var(--red); color: var(--red); }
 </style>
 </head>
 <body>
@@ -99,6 +127,14 @@ tr.data-row { cursor: pointer; }
     <span class="tag">SERVER</span>
   </header>
 
+  <nav class="tab-nav">
+    <button type="button" class="tab-btn active" onclick="switchTab('conversations')">Conversations</button>
+    <button type="button" class="tab-btn" onclick="switchTab('knowledge')">Knowledge</button>
+    <button type="button" class="tab-btn" onclick="switchTab('timeline')">Timeline</button>
+    <button type="button" class="tab-btn" onclick="switchTab('settings')">Settings</button>
+  </nav>
+
+  <div id="tab-conversations" class="tab-panel active">
   <div class="stats-row" id="statsRow"></div>
 
   <div class="toolbar">
@@ -131,7 +167,29 @@ tr.data-row { cursor: pointer; }
     <tbody id="tbody"></tbody>
   </table>
   <div class="pagination" id="pagination"></div>
-</div>
+  </div><!-- /tab-conversations -->
+
+  <div id="tab-knowledge" class="tab-panel">
+    <div class="toolbar">
+      <div class="filter-tabs">
+        <button type="button" class="filter-tab active" data-ktype="" onclick="setKnowledgeType(this,'')">All</button>
+        <button type="button" class="filter-tab" data-ktype="tech_solution" onclick="setKnowledgeType(this,'tech_solution')">Tech Solutions</button>
+        <button type="button" class="filter-tab" data-ktype="concept" onclick="setKnowledgeType(this,'concept')">Concepts</button>
+        <button type="button" class="filter-tab" data-ktype="prompt" onclick="setKnowledgeType(this,'prompt')">Prompts</button>
+        <button type="button" class="filter-tab" data-ktype="work_log" onclick="setKnowledgeType(this,'work_log')">Work Log</button>
+      </div>
+    </div>
+    <div id="knowledgeList"></div>
+  </div>
+
+  <div id="tab-timeline" class="tab-panel">
+    <div id="timelineList"></div>
+  </div>
+
+  <div id="tab-settings" class="tab-panel">
+    <div id="settingsContent"></div>
+  </div>
+</div><!-- /container -->
 
 <div class="modal-overlay" id="modal" onclick="if(event.target===this)closeModal()">
   <div class="modal">
@@ -335,12 +393,162 @@ async function showDetail(id) {
     container.appendChild(msgDiv);
   });
 
+  // Action buttons in modal
+  const actions = document.createElement('div');
+  actions.style.cssText = 'padding:12px 24px;border-top:1px solid var(--border);display:flex;gap:8px';
+  const delBtn = el('button', { class: 'action-btn danger', onclick: async () => {
+    if (!confirm('Delete this conversation?')) return;
+    await fetch('/api/conversations/' + encodeURIComponent(c.id), { method: 'DELETE' });
+    closeModal(); loadStats(); loadConversations();
+  }}, 'Delete');
+  const reprocessBtn = el('button', { class: 'action-btn', onclick: async () => {
+    await fetch('/api/conversations/' + encodeURIComponent(c.id) + '/reprocess', { method: 'POST' });
+    closeModal(); loadStats(); loadConversations();
+  }}, 'Reprocess');
+  const extractBtn = el('button', { class: 'action-btn', onclick: async () => {
+    extractBtn.textContent = 'Extracting...';
+    const r = await fetch('/api/conversations/' + encodeURIComponent(c.id) + '/extract', { method: 'POST' });
+    const res = await r.json();
+    extractBtn.textContent = res.ok ? 'Extracted!' : 'Failed';
+  }}, 'Extract Knowledge');
+  actions.append(delBtn, reprocessBtn, extractBtn);
+  container.after(actions);
+
   document.getElementById('modal').classList.add('open');
 }
 
 function closeModal() { document.getElementById('modal').classList.remove('open'); }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
+// ── Tab Switching ──
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.textContent.toLowerCase().startsWith(name.slice(0,4))));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + name));
+  if (name === 'knowledge') loadKnowledge();
+  if (name === 'timeline') loadTimeline();
+  if (name === 'settings') loadSettings();
+}
+
+// ── Knowledge Tab ──
+let knowledgeType = '';
+function setKnowledgeType(btn, type) {
+  knowledgeType = type;
+  document.querySelectorAll('#tab-knowledge .filter-tab').forEach(b => b.classList.toggle('active', (b.dataset.ktype || '') === type));
+  loadKnowledge();
+}
+
+async function loadKnowledge() {
+  const params = new URLSearchParams({ limit: '100' });
+  if (knowledgeType) params.set('type', knowledgeType);
+  const exts = await api('/extractions?' + params);
+  const container = document.getElementById('knowledgeList');
+  container.replaceChildren();
+  if (!exts.length) {
+    container.appendChild(el('div', { class: 'empty' }, 'No extractions yet. Configure LLM in settings to enable knowledge extraction.'));
+    return;
+  }
+  exts.forEach(e => {
+    const card = el('div', { class: 'knowledge-card' }, [
+      el('span', { class: 'knowledge-type ' + e.type }, e.type.replace('_', ' ')),
+      el('div', { class: 'knowledge-title' }, e.title),
+      el('div', { class: 'knowledge-content' }, e.content.slice(0, 500) + (e.content.length > 500 ? '...' : '')),
+      el('div', { style: 'margin-top:8px;font-size:11px;color:var(--text-tertiary)' },
+        (e.extracted_at || '').slice(0, 10) + (e.model_used ? ' / ' + e.model_used : '')),
+    ]);
+    container.appendChild(card);
+  });
+}
+
+// ── Timeline Tab ──
+async function loadTimeline() {
+  const exts = await api('/extractions?type=work_log&limit=50');
+  const container = document.getElementById('timelineList');
+  container.replaceChildren();
+  if (!exts.length) {
+    container.appendChild(el('div', { class: 'empty' }, 'No work log entries. LLM extraction creates these automatically.'));
+    return;
+  }
+  exts.forEach(e => {
+    const entry = el('div', { class: 'timeline-entry' }, [
+      el('div', { class: 'timeline-date' }, (e.extracted_at || '').slice(0, 10)),
+      el('div', { class: 'timeline-body' }, [
+        el('div', { class: 'timeline-title' }, e.title),
+        el('div', { class: 'timeline-desc' }, e.content),
+      ]),
+    ]);
+    container.appendChild(entry);
+  });
+}
+
+// ── Settings Tab ──
+async function loadSettings() {
+  const cfg = await api('/config');
+  const summary = await api('/stats/summary');
+  const container = document.getElementById('settingsContent');
+  container.replaceChildren();
+
+  // Stats summary
+  const statsSection = el('div', { class: 'settings-section' }, [el('h3', {}, 'Overview')]);
+  [
+    ['Conversations', summary.total],
+    ['Projects', summary.project_count],
+    ['Extractions', summary.extraction_count],
+    ['Total words', summary.total_words?.toLocaleString()],
+    ['Total tokens (in)', summary.total_input_tokens?.toLocaleString()],
+    ['Total tokens (out)', summary.total_output_tokens?.toLocaleString()],
+  ].forEach(([k, v]) => {
+    statsSection.appendChild(el('div', { class: 'settings-row' }, [
+      el('span', { class: 'settings-key' }, k),
+      el('span', { class: 'settings-val' }, String(v || 0)),
+    ]));
+  });
+  container.appendChild(statsSection);
+
+  // Output adapter config
+  const outputSection = el('div', { class: 'settings-section' }, [el('h3', {}, 'Output Adapter')]);
+  [
+    ['Adapter', cfg.output?.adapter || 'none'],
+  ].forEach(([k, v]) => {
+    outputSection.appendChild(el('div', { class: 'settings-row' }, [
+      el('span', { class: 'settings-key' }, k),
+      el('span', { class: 'settings-val' }, v),
+    ]));
+  });
+  if (cfg.output?.local) outputSection.appendChild(el('div', { class: 'settings-row' }, [el('span', { class: 'settings-key' }, 'Path'), el('span', { class: 'settings-val' }, cfg.output.local.path)]));
+  if (cfg.output?.fns) outputSection.appendChild(el('div', { class: 'settings-row' }, [el('span', { class: 'settings-key' }, 'FNS URL'), el('span', { class: 'settings-val' }, cfg.output.fns.url)]));
+  if (cfg.output?.git) outputSection.appendChild(el('div', { class: 'settings-row' }, [el('span', { class: 'settings-key' }, 'Git repo'), el('span', { class: 'settings-val' }, cfg.output.git.repo_path)]));
+  container.appendChild(outputSection);
+
+  // LLM config
+  const llmSection = el('div', { class: 'settings-section' }, [el('h3', {}, 'LLM Extraction')]);
+  [
+    ['Adapter', cfg.llm?.adapter || 'none'],
+    ['Min words', cfg.llm?.min_words || 100],
+  ].forEach(([k, v]) => {
+    llmSection.appendChild(el('div', { class: 'settings-row' }, [
+      el('span', { class: 'settings-key' }, k),
+      el('span', { class: 'settings-val' }, String(v)),
+    ]));
+  });
+  container.appendChild(llmSection);
+
+  // Processor config
+  const procSection = el('div', { class: 'settings-section' }, [el('h3', {}, 'Processor')]);
+  [
+    ['Enabled', cfg.processor?.enabled ?? true],
+    ['Interval', (cfg.processor?.interval_seconds || 30) + 's'],
+    ['Batch size', cfg.processor?.batch_size || 20],
+    ['Sync directory', cfg.processor?.sync_dir || 'aichatlog'],
+  ].forEach(([k, v]) => {
+    procSection.appendChild(el('div', { class: 'settings-row' }, [
+      el('span', { class: 'settings-key' }, k),
+      el('span', { class: 'settings-val' }, String(v)),
+    ]));
+  });
+  container.appendChild(procSection);
+}
+
+// Init
 loadStats();
 loadConversations();
 </script>

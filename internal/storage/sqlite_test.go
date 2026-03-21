@@ -384,7 +384,83 @@ func TestFTS5Search(t *testing.T) {
 	}
 }
 
+func TestSoftDelete(t *testing.T) {
+	s := newTestStore(t)
+	s.Upsert(testConv("del-1"))
+	s.Upsert(testConv("del-2"))
+
+	row, _ := s.Get("del-1")
+	s.SoftDelete(row.ID)
+
+	// Deleted conversation should be excluded from List by default
+	rows, _ := s.List(QueryParams{Limit: 10})
+	if len(rows) != 1 {
+		t.Errorf("List after delete: got %d, want 1", len(rows))
+	}
+
+	// But still findable by direct Get
+	deleted, _ := s.Get(row.ID)
+	if deleted == nil || deleted.Status != "deleted" {
+		t.Error("Get should still return deleted conversation")
+	}
+
+	// Re-upsert should NOT resurrect deleted conversation
+	s.Upsert(testConv("del-1"))
+	row2, _ := s.Get(row.ID)
+	if row2.Status != "deleted" {
+		t.Errorf("Status after re-upsert should be deleted, got %q", row2.Status)
+	}
+}
+
+func TestUpdateFields(t *testing.T) {
+	s := newTestStore(t)
+	s.Upsert(testConv("upd-1"))
+	row, _ := s.Get("upd-1")
+
+	newTitle := "Updated title"
+	s.UpdateFields(row.ID, UpdateFieldsParams{Title: &newTitle})
+
+	row2, _ := s.Get(row.ID)
+	if row2.Title != "Updated title" {
+		t.Errorf("Title = %q, want 'Updated title'", row2.Title)
+	}
+}
+
+func TestClearExtractions(t *testing.T) {
+	s := newTestStore(t)
+	s.Upsert(testConv("clr-1"))
+	row, _ := s.Get("clr-1")
+
+	s.InsertExtraction(row.ID, "work_log", "S", "C", "{}", "", "m")
+	has, _ := s.HasExtraction(row.ID)
+	if !has {
+		t.Fatal("Should have extraction")
+	}
+
+	s.ClearExtractions(row.ID)
+	has2, _ := s.HasExtraction(row.ID)
+	if has2 {
+		t.Error("Should have no extractions after clear")
+	}
+}
+
+func TestStatsSummary(t *testing.T) {
+	s := newTestStore(t)
+	s.Upsert(testConv("sum-1"))
+	s.Upsert(testConv("sum-2"))
+
+	summary, err := s.GetStatsSummary()
+	if err != nil {
+		t.Fatalf("GetStatsSummary: %v", err)
+	}
+	if summary.Total != 2 {
+		t.Errorf("Total = %d, want 2", summary.Total)
+	}
+	if summary.TotalInputTokens != 2000 {
+		t.Errorf("TotalInputTokens = %d, want 2000", summary.TotalInputTokens)
+	}
+}
+
 func init() {
-	// Ensure temp dirs are writable
 	os.Setenv("TMPDIR", os.TempDir())
 }
