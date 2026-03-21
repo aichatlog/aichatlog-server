@@ -619,6 +619,49 @@ func (s *Store) GetTags(conversationID string) ([]string, error) {
 	return tags, rows.Err()
 }
 
+// ── Status Operations ──
+
+// ListByStatus returns conversation IDs with the given status, limited to n.
+func (s *Store) ListByStatus(status string, limit int) ([]string, error) {
+	rows, err := s.db.Query(
+		"SELECT id FROM conversations WHERE status = ? ORDER BY created_at ASC LIMIT ?",
+		status, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// UpdateStatus updates the status of a conversation.
+func (s *Store) UpdateStatus(id, status string) error {
+	now := time.Now().Format("2006-01-02T15:04:05")
+	_, err := s.db.Exec(
+		"UPDATE conversations SET status = ?, updated_at = ? WHERE id = ?",
+		status, now, id,
+	)
+	return err
+}
+
+// RecordSync records a successful output sync in the output_sync table.
+func (s *Store) RecordSync(conversationID, adapter, path, contentHash string) error {
+	_, err := s.db.Exec(`
+		INSERT INTO output_sync (conversation_id, adapter, path, content_hash)
+		VALUES (?, ?, ?, ?)
+	`, conversationID, adapter, path, contentHash)
+	return err
+}
+
 // ── Helpers ──
 
 // ftsEscape escapes special FTS5 characters for safe MATCH queries.

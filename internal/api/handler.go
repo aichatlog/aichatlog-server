@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/aichatlog/aichatlog/server/internal/config"
 	"github.com/aichatlog/aichatlog/server/internal/storage"
 )
 
@@ -15,13 +16,15 @@ type Handler struct {
 	store     *storage.Store
 	token     string
 	mux       *http.ServeMux
-	dashboard []byte // embedded dashboard HTML
+	dashboard []byte           // embedded dashboard HTML
+	cfgMgr    *config.Manager
 }
 
 // NewHandler creates a new API handler.
 // dashboardHTML may be nil if no dashboard is embedded.
-func NewHandler(store *storage.Store, token string, dashboardHTML []byte) *Handler {
-	h := &Handler{store: store, token: token, dashboard: dashboardHTML}
+// cfgMgr may be nil if config API is not needed.
+func NewHandler(store *storage.Store, token string, dashboardHTML []byte, cfgMgr *config.Manager) *Handler {
+	h := &Handler{store: store, token: token, dashboard: dashboardHTML, cfgMgr: cfgMgr}
 	mux := http.NewServeMux()
 
 	// Dashboard
@@ -36,6 +39,8 @@ func NewHandler(store *storage.Store, token string, dashboardHTML []byte) *Handl
 	mux.HandleFunc("POST /api/conversations", h.handleCreateConversation)
 	mux.HandleFunc("POST /api/conversations/batch", h.handleBatchCreate)
 	mux.HandleFunc("GET /api/stats", h.handleStats)
+	mux.HandleFunc("GET /api/config", h.handleGetConfig)
+	mux.HandleFunc("POST /api/config", h.handleUpdateConfig)
 
 	h.mux = mux
 	return h
@@ -212,6 +217,39 @@ func (h *Handler) handleStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	jsonResponse(w, stats)
+}
+
+func (h *Handler) handleGetConfig(w http.ResponseWriter, r *http.Request) {
+	if h.cfgMgr == nil {
+		jsonError(w, "Config not available", http.StatusNotImplemented)
+		return
+	}
+	jsonResponse(w, h.cfgMgr.Get())
+}
+
+func (h *Handler) handleUpdateConfig(w http.ResponseWriter, r *http.Request) {
+	if h.cfgMgr == nil {
+		jsonError(w, "Config not available", http.StatusNotImplemented)
+		return
+	}
+
+	var cfg config.ServerConfig
+	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
+		jsonError(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := h.cfgMgr.Update(cfg); err != nil {
+		log.Printf("Error updating config: %v", err)
+		jsonError(w, "Failed to save config", http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("Config updated (adapter=%s)", cfg.Output.Adapter)
+	jsonResponse(w, map[string]interface{}{
+		"ok":      true,
+		"message": "Config updated. Restart server to apply output adapter changes.",
+	})
 }
 
 // Helper functions
