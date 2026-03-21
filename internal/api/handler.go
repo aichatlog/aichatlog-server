@@ -25,7 +25,9 @@ func NewHandler(store *storage.Store, token string) *Handler {
 	mux.HandleFunc("GET /api/health", h.handleHealth)
 	mux.HandleFunc("GET /api/conversations", h.handleListConversations)
 	mux.HandleFunc("GET /api/conversations/{id}", h.handleGetConversation)
+	mux.HandleFunc("GET /api/conversations/{id}/messages", h.handleGetMessages)
 	mux.HandleFunc("POST /api/conversations", h.handleCreateConversation)
+	mux.HandleFunc("POST /api/conversations/batch", h.handleBatchCreate)
 	mux.HandleFunc("GET /api/stats", h.handleStats)
 
 	h.mux = mux
@@ -89,6 +91,27 @@ func (h *Handler) handleCreateConversation(w http.ResponseWriter, r *http.Reques
 	})
 }
 
+func (h *Handler) handleBatchCreate(w http.ResponseWriter, r *http.Request) {
+	var convs []*storage.ConversationObject
+	if err := json.NewDecoder(r.Body).Decode(&convs); err != nil {
+		jsonError(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	count, err := h.store.UpsertBatch(convs)
+	if err != nil {
+		log.Printf("Error in batch upsert at item %d: %v", count, err)
+		jsonError(w, fmt.Sprintf("Error at item %d: %s", count, err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("Batch received: %d conversations", count)
+	jsonResponse(w, map[string]interface{}{
+		"ok":    true,
+		"count": count,
+	})
+}
+
 func (h *Handler) handleListConversations(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	params := storage.QueryParams{
@@ -117,6 +140,38 @@ func (h *Handler) handleListConversations(w http.ResponseWriter, r *http.Request
 
 func (h *Handler) handleGetConversation(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+
+	// If full=true, return conversation with messages
+	if r.URL.Query().Get("full") == "true" {
+		detail, err := h.store.GetDetail(id)
+		if err != nil {
+			jsonError(w, "Internal error", http.StatusInternalServerError)
+			return
+		}
+		if detail == nil {
+			jsonError(w, "Not found", http.StatusNotFound)
+			return
+		}
+		jsonResponse(w, detail)
+		return
+	}
+
+	conv, err := h.store.Get(id)
+	if err != nil {
+		jsonError(w, "Internal error", http.StatusInternalServerError)
+		return
+	}
+	if conv == nil {
+		jsonError(w, "Not found", http.StatusNotFound)
+		return
+	}
+	jsonResponse(w, conv)
+}
+
+func (h *Handler) handleGetMessages(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	// Resolve conversation ID (might be session_id)
 	conv, err := h.store.Get(id)
 	if err != nil {
 		jsonError(w, "Internal error", http.StatusInternalServerError)
@@ -127,18 +182,15 @@ func (h *Handler) handleGetConversation(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Include raw JSON if requested
-	if r.URL.Query().Get("full") == "true" {
-		raw, err := h.store.GetRawJSON(id)
-		if err == nil && raw != "" {
-			var full map[string]interface{}
-			json.Unmarshal([]byte(raw), &full)
-			jsonResponse(w, full)
-			return
-		}
+	messages, err := h.store.GetMessages(conv.ID)
+	if err != nil {
+		jsonError(w, "Internal error", http.StatusInternalServerError)
+		return
 	}
-
-	jsonResponse(w, conv)
+	if messages == nil {
+		messages = []storage.MessageRow{}
+	}
+	jsonResponse(w, messages)
 }
 
 func (h *Handler) handleStats(w http.ResponseWriter, r *http.Request) {
