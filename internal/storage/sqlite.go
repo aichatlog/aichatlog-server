@@ -972,6 +972,93 @@ func (s *Store) RecordSync(conversationID, adapter, path, contentHash string) er
 	return err
 }
 
+// ── Extraction Operations ──
+
+// ExtractionRow represents a row from the extractions table.
+type ExtractionRow struct {
+	ID             int    `json:"id"`
+	ConversationID string `json:"conversation_id"`
+	Type           string `json:"type"`
+	Title          string `json:"title"`
+	Content        string `json:"content"`
+	Metadata       string `json:"metadata"`
+	OutputPath     string `json:"output_path"`
+	ExtractedAt    string `json:"extracted_at"`
+	ModelUsed      string `json:"model_used"`
+}
+
+// InsertExtraction stores an extraction result.
+func (s *Store) InsertExtraction(conversationID, extractionType, title, content, metadata, outputPath, modelUsed string) error {
+	_, err := s.db.Exec(`
+		INSERT INTO extractions (conversation_id, type, title, content, metadata, output_path, model_used)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, conversationID, extractionType, title, content, metadata, outputPath, modelUsed)
+	return err
+}
+
+// GetExtractions returns all extractions for a conversation.
+func (s *Store) GetExtractions(conversationID string) ([]ExtractionRow, error) {
+	rows, err := s.db.Query(`
+		SELECT id, conversation_id, type, title, content, metadata, output_path, extracted_at, model_used
+		FROM extractions WHERE conversation_id = ? ORDER BY id
+	`, conversationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []ExtractionRow
+	for rows.Next() {
+		var e ExtractionRow
+		if err := rows.Scan(&e.ID, &e.ConversationID, &e.Type, &e.Title, &e.Content,
+			&e.Metadata, &e.OutputPath, &e.ExtractedAt, &e.ModelUsed); err != nil {
+			return nil, err
+		}
+		results = append(results, e)
+	}
+	return results, rows.Err()
+}
+
+// ListExtractions returns extractions with optional type filter.
+func (s *Store) ListExtractions(extractionType string, limit, offset int) ([]ExtractionRow, error) {
+	query := `SELECT id, conversation_id, type, title, content, metadata, output_path, extracted_at, model_used
+		FROM extractions`
+	var args []interface{}
+	if extractionType != "" {
+		query += " WHERE type = ?"
+		args = append(args, extractionType)
+	}
+	query += " ORDER BY extracted_at DESC"
+	if limit <= 0 {
+		limit = 100
+	}
+	query += fmt.Sprintf(" LIMIT %d OFFSET %d", limit, offset)
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []ExtractionRow
+	for rows.Next() {
+		var e ExtractionRow
+		if err := rows.Scan(&e.ID, &e.ConversationID, &e.Type, &e.Title, &e.Content,
+			&e.Metadata, &e.OutputPath, &e.ExtractedAt, &e.ModelUsed); err != nil {
+			return nil, err
+		}
+		results = append(results, e)
+	}
+	return results, rows.Err()
+}
+
+// HasExtraction checks if a conversation already has extractions.
+func (s *Store) HasExtraction(conversationID string) (bool, error) {
+	var count int
+	err := s.db.QueryRow("SELECT COUNT(*) FROM extractions WHERE conversation_id = ?", conversationID).Scan(&count)
+	return count > 0, err
+}
+
 // ── Helpers ──
 
 // ftsEscape escapes special FTS5 characters for safe MATCH queries.

@@ -11,12 +11,14 @@ import (
 
 // Processor is a background worker that processes received conversations
 // through the pipeline: fetch → render → push via output adapter → update status.
+// Optionally runs LLM extraction after syncing.
 type Processor struct {
-	store    *storage.Store
-	adapter  output.Adapter
-	syncDir  string
-	interval time.Duration
-	batch    int
+	store     *storage.Store
+	adapter   output.Adapter
+	extractor *Extractor
+	syncDir   string
+	interval  time.Duration
+	batch     int
 }
 
 // Config for the processor.
@@ -30,7 +32,8 @@ type Config struct {
 }
 
 // New creates a new Processor. If adapter is nil, processing is disabled.
-func New(store *storage.Store, adapter output.Adapter, cfg *Config) *Processor {
+// extractor may be nil to disable LLM extraction.
+func New(store *storage.Store, adapter output.Adapter, extractor *Extractor, cfg *Config) *Processor {
 	interval := 30 * time.Second
 	batch := 20
 	syncDir := "aichatlog"
@@ -48,11 +51,12 @@ func New(store *storage.Store, adapter output.Adapter, cfg *Config) *Processor {
 	}
 
 	return &Processor{
-		store:    store,
-		adapter:  adapter,
-		syncDir:  syncDir,
-		interval: interval,
-		batch:    batch,
+		store:     store,
+		adapter:   adapter,
+		extractor: extractor,
+		syncDir:   syncDir,
+		interval:  interval,
+		batch:     batch,
 	}
 }
 
@@ -142,5 +146,14 @@ func (p *Processor) processOne(id string) error {
 	p.store.UpdateStatus(id, "synced")
 
 	log.Printf("processor: synced %s → %s", id, path)
+
+	// 6. Optional: LLM knowledge extraction
+	if p.extractor != nil {
+		if err := p.extractor.ExtractOne(id); err != nil {
+			log.Printf("processor: extraction error for %s: %v", id, err)
+			// Don't fail the sync — extraction is optional
+		}
+	}
+
 	return nil
 }

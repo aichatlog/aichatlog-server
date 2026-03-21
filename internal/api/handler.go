@@ -40,6 +40,8 @@ func NewHandler(store *storage.Store, token string, dashboardHTML []byte, cfgMgr
 	mux.HandleFunc("POST /api/conversations", h.handleCreateConversation)
 	mux.HandleFunc("POST /api/conversations/batch", h.handleBatchCreate)
 	mux.HandleFunc("GET /api/stats", h.handleStats)
+	mux.HandleFunc("GET /api/extractions", h.handleListExtractions)
+	mux.HandleFunc("GET /api/conversations/{id}/extractions", h.handleGetExtractions)
 	mux.HandleFunc("GET /api/config", h.handleGetConfig)
 	mux.HandleFunc("POST /api/config", h.handleUpdateConfig)
 
@@ -232,6 +234,45 @@ func (h *Handler) handleGetMessages(w http.ResponseWriter, r *http.Request) {
 		messages = []storage.MessageRow{}
 	}
 	jsonResponse(w, messages)
+}
+
+func (h *Handler) handleListExtractions(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	extractions, err := h.store.ListExtractions(
+		q.Get("type"),
+		intParam(q.Get("limit"), 100),
+		intParam(q.Get("offset"), 0),
+	)
+	if err != nil {
+		jsonError(w, "Internal error", http.StatusInternalServerError)
+		return
+	}
+	if extractions == nil {
+		extractions = []storage.ExtractionRow{}
+	}
+	jsonResponse(w, extractions)
+}
+
+func (h *Handler) handleGetExtractions(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	conv, err := h.store.Get(id)
+	if err != nil {
+		jsonError(w, "Internal error", http.StatusInternalServerError)
+		return
+	}
+	if conv == nil {
+		jsonError(w, "Not found", http.StatusNotFound)
+		return
+	}
+	extractions, err := h.store.GetExtractions(conv.ID)
+	if err != nil {
+		jsonError(w, "Internal error", http.StatusInternalServerError)
+		return
+	}
+	if extractions == nil {
+		extractions = []storage.ExtractionRow{}
+	}
+	jsonResponse(w, extractions)
 }
 
 func (h *Handler) handleStats(w http.ResponseWriter, r *http.Request) {

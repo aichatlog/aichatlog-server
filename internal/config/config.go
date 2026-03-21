@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/aichatlog/aichatlog/server/internal/llm"
 	"github.com/aichatlog/aichatlog/server/internal/output"
 )
 
@@ -14,6 +15,7 @@ import (
 type ServerConfig struct {
 	Output    output.Config   `json:"output"`
 	Processor ProcessorConfig `json:"processor"`
+	LLM       llm.Config      `json:"llm"`
 }
 
 // ProcessorConfig controls the background processor.

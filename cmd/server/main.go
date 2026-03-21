@@ -14,6 +14,7 @@ import (
 
 	"github.com/aichatlog/aichatlog/server/internal/api"
 	"github.com/aichatlog/aichatlog/server/internal/config"
+	"github.com/aichatlog/aichatlog/server/internal/llm"
 	"github.com/aichatlog/aichatlog/server/internal/output"
 	"github.com/aichatlog/aichatlog/server/internal/processor"
 	"github.com/aichatlog/aichatlog/server/internal/storage"
@@ -66,11 +67,25 @@ func main() {
 		log.Printf("WARNING: output adapter error: %v (processing disabled)", err)
 	}
 
+	// Initialize LLM adapter and extractor
+	llmAdapter, err := llm.NewAdapter(&cfg.LLM)
+	if err != nil {
+		log.Printf("WARNING: LLM adapter error: %v (extraction disabled)", err)
+	}
+	var extractor *processor.Extractor
+	if llmAdapter != nil {
+		extractor = processor.NewExtractor(store, llmAdapter, adapter, &processor.ExtractorConfig{
+			MinWords: cfg.LLM.MinWords,
+			SyncDir:  cfg.Processor.SyncDir,
+		})
+		log.Printf("  LLM: %s (extraction enabled)", llmAdapter.Name())
+	}
+
 	// Initialize processor
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	proc := processor.New(store, adapter, &processor.Config{
+	proc := processor.New(store, adapter, extractor, &processor.Config{
 		Interval:  time.Duration(cfg.Processor.Interval) * time.Second,
 		BatchSize: cfg.Processor.BatchSize,
 		SyncDir:   cfg.Processor.SyncDir,
