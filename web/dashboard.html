@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AIChatLog Server</title>
+<style>
+:root {
+  --bg-void: #08090d;
+  --bg-deep: #0f1117;
+  --bg-card: #161922;
+  --bg-elevated: #1e2130;
+  --bg-hover: #252940;
+  --border: #2a2e3f;
+  --text-primary: #e2e4ed;
+  --text-secondary: #8b8fa7;
+  --text-tertiary: #565a70;
+  --accent: #6c8aff;
+  --accent-dim: #3d4f8a;
+  --green: #3dd68c;
+  --green-dim: rgba(61, 214, 140, 0.12);
+  --orange: #ffb340;
+  --orange-dim: rgba(255, 179, 64, 0.12);
+  --red: #ff6b6b;
+  --gray: #565a70;
+  --gray-dim: rgba(86, 90, 112, 0.12);
+  --radius: 8px;
+  --mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Menlo', 'Consolas', monospace;
+  --sans: -apple-system, 'PingFang SC', sans-serif;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg-void: #f0f1f5; --bg-deep: #f7f8fa; --bg-card: #ffffff;
+    --bg-elevated: #f0f1f5; --bg-hover: #e8e9f0; --border: #d8dae3;
+    --text-primary: #1a1d2b; --text-secondary: #5c607a; --text-tertiary: #9498b0;
+    --accent: #4a66e0; --green: #16a34a; --orange: #d97706; --red: #dc2626;
+    --gray: #9498b0;
+  }
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: var(--sans); background: var(--bg-void); color: var(--text-primary); min-height: 100vh; }
+.container { max-width: 1100px; margin: 0 auto; padding: 24px 20px; }
+header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+header h1 { font-size: 20px; font-weight: 600; }
+header .tag { font-size: 11px; background: var(--accent-dim); color: var(--accent); padding: 2px 8px; border-radius: 4px; font-family: var(--mono); }
+.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; text-align: center; cursor: pointer; transition: border-color 0.15s; }
+.stat-card:hover, .stat-card.active { border-color: var(--accent); }
+.stat-card .label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+.stat-card .value { font-size: 24px; font-weight: 700; font-family: var(--mono); }
+.toolbar { display: flex; gap: 12px; margin-bottom: 16px; align-items: center; }
+.search-wrap { flex: 1; position: relative; }
+.search-wrap input { width: 100%; padding: 10px 12px 10px 36px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text-primary); font-size: 14px; outline: none; }
+.search-wrap input:focus { border-color: var(--accent); }
+.search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--text-tertiary); }
+.filter-tabs { display: flex; gap: 4px; }
+.filter-tab { background: transparent; border: 1px solid var(--border); color: var(--text-secondary); padding: 6px 14px; border-radius: var(--radius); cursor: pointer; font-size: 13px; transition: all 0.15s; }
+.filter-tab:hover { background: var(--bg-hover); }
+.filter-tab.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: 12px; color: var(--text-tertiary); font-weight: 500; padding: 8px 12px; border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; white-space: nowrap; }
+th:hover { color: var(--text-secondary); }
+td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 14px; }
+tr.data-row:hover td { background: var(--bg-hover); }
+tr.data-row { cursor: pointer; }
+.badge { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-family: var(--mono); display: inline-block; }
+.badge-received { background: var(--orange-dim); color: var(--orange); }
+.badge-synced { background: var(--green-dim); color: var(--green); }
+.badge-failed { background: rgba(255,107,107,0.12); color: var(--red); }
+.badge-ignored { background: var(--gray-dim); color: var(--gray); }
+.source-badge { font-size: 11px; color: var(--accent); background: var(--accent-dim); padding: 1px 6px; border-radius: 3px; display: inline-block; }
+.empty { text-align: center; padding: 60px 20px; color: var(--text-tertiary); }
+.modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 100; justify-content: center; align-items: flex-start; padding: 40px 20px; overflow-y: auto; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--bg-deep); border: 1px solid var(--border); border-radius: 12px; max-width: 800px; width: 100%; max-height: calc(100vh - 80px); overflow-y: auto; }
+.modal-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.modal-header h2 { font-size: 16px; font-weight: 600; }
+.modal-close { background: none; border: none; color: var(--text-tertiary); cursor: pointer; font-size: 20px; padding: 4px; }
+.modal-close:hover { color: var(--text-primary); }
+.modal-meta { padding: 16px 24px; display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; color: var(--text-secondary); border-bottom: 1px solid var(--border); }
+.messages-container { padding: 16px 24px; }
+.msg { margin-bottom: 16px; }
+.msg-role { font-size: 12px; font-weight: 600; margin-bottom: 4px; font-family: var(--mono); }
+.msg-role.user { color: var(--accent); }
+.msg-role.assistant { color: var(--green); }
+.msg-content { font-size: 14px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; background: var(--bg-card); padding: 12px 16px; border-radius: var(--radius); border: 1px solid var(--border); }
+.msg-time { font-size: 11px; color: var(--text-tertiary); margin-top: 4px; }
+.pagination { display: flex; justify-content: center; gap: 8px; margin-top: 16px; }
+.pagination button { background: var(--bg-card); border: 1px solid var(--border); color: var(--text-secondary); padding: 6px 14px; border-radius: var(--radius); cursor: pointer; }
+.pagination button:hover:not(:disabled) { border-color: var(--accent); }
+.pagination button:disabled { opacity: 0.4; cursor: default; }
+.page-info { border: none; background: none; color: var(--text-secondary); }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>AIChatLog</h1>
+    <span class="tag">SERVER</span>
+  </header>
+
+  <div class="stats-row" id="statsRow"></div>
+
+  <div class="toolbar">
+    <div class="search-wrap">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="5"/><path d="M11 11l3.5 3.5"/></svg>
+      <input type="text" id="searchInput" placeholder="Search conversations..." oninput="onSearch()">
+    </div>
+    <div class="filter-tabs" id="filterTabs">
+      <button class="filter-tab active" data-filter="" onclick="setFilter(this, '')">All</button>
+      <button class="filter-tab" data-filter="received" onclick="setFilter(this, 'received')">Received</button>
+      <button class="filter-tab" data-filter="synced" onclick="setFilter(this, 'synced')">Synced</button>
+      <button class="filter-tab" data-filter="ignored" onclick="setFilter(this, 'ignored')">Ignored</button>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th onclick="setSort('started_at')">Date</th>
+        <th onclick="setSort('title')">Title</th>
+        <th onclick="setSort('project')">Project</th>
+        <th>Source</th>
+        <th onclick="setSort('message_count')">Msgs</th>
+        <th onclick="setSort('word_count')">Words</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div class="pagination" id="pagination"></div>
+</div>
+
+<div class="modal-overlay" id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle"></h2>
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+    </div>
+    <div class="modal-meta" id="modalMeta"></div>
+    <div class="messages-container" id="modalMessages"></div>
+  </div>
+</div>
+
+<script>
+const PAGE_SIZE = 50;
+let state = { filter: '', query: '', sort: 'started_at', order: 'desc', offset: 0 };
+let searchTimer = null;
+
+async function api(path) {
+  const r = await fetch('/api' + path);
+  return r.json();
+}
+
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.textContent;
+}
+
+function el(tag, attrs, children) {
+  const e = document.createElement(tag);
+  if (attrs) Object.entries(attrs).forEach(([k, v]) => {
+    if (k === 'class') e.className = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v);
+  });
+  if (typeof children === 'string') e.textContent = children;
+  else if (Array.isArray(children)) children.forEach(c => { if (c) e.appendChild(c); });
+  return e;
+}
+
+async function loadStats() {
+  const s = await api('/stats');
+  const container = document.getElementById('statsRow');
+  container.replaceChildren();
+  [
+    { k: '', label: 'Total', v: s.total },
+    { k: 'received', label: 'Received', v: s.received },
+    { k: 'synced', label: 'Synced', v: s.synced },
+    { k: 'ignored', label: 'Ignored', v: s.ignored },
+  ].forEach(x => {
+    const card = el('div', { class: 'stat-card' + (state.filter === x.k ? ' active' : ''), 'data-filter': x.k }, [
+      el('div', { class: 'label' }, x.label),
+      el('div', { class: 'value' }, String(x.v)),
+    ]);
+    card.addEventListener('click', () => setFilter(null, x.k));
+    container.appendChild(card);
+  });
+}
+
+async function loadConversations() {
+  const params = new URLSearchParams();
+  if (state.filter) params.set('status', state.filter);
+  if (state.query) params.set('q', state.query);
+  params.set('sort', state.sort);
+  params.set('order', state.order);
+  params.set('limit', PAGE_SIZE);
+  params.set('offset', state.offset);
+
+  const rows = await api('/conversations?' + params);
+  const tbody = document.getElementById('tbody');
+  tbody.replaceChildren();
+
+  if (!rows.length) {
+    const tr = el('tr', {}, [el('td', { colspan: '7', class: 'empty' }, 'No conversations found')]);
+    tbody.appendChild(tr);
+    document.getElementById('pagination').replaceChildren();
+    return;
+  }
+
+  rows.forEach(c => {
+    const tr = el('tr', { class: 'data-row' }, [
+      el('td', { style: 'white-space:nowrap;font-family:var(--mono);font-size:13px;color:var(--text-secondary)' }, (c.started_at || '').slice(0, 10)),
+      (() => {
+        const td = el('td', {}, c.title);
+        if (c.has_code) {
+          const code = el('span', { style: 'color:var(--accent);font-size:11px;margin-left:4px' }, '</>' );
+          td.appendChild(code);
+        }
+        return td;
+      })(),
+      el('td', { style: 'color:var(--text-secondary)' }, c.project || '\u2014'),
+      (() => {
+        const td = document.createElement('td');
+        td.appendChild(el('span', { class: 'source-badge' }, c.source_type));
+        return td;
+      })(),
+      el('td', { style: 'font-family:var(--mono);font-size:13px;text-align:center' }, String(c.message_count)),
+      el('td', { style: 'font-family:var(--mono);font-size:13px;text-align:center' }, String(c.word_count)),
+      (() => {
+        const td = document.createElement('td');
+        td.appendChild(el('span', { class: 'badge badge-' + c.status }, c.status));
+        return td;
+      })(),
+    ]);
+    tr.addEventListener('click', () => showDetail(c.id));
+    tbody.appendChild(tr);
+  });
+
+  // Pagination
+  const pag = document.getElementById('pagination');
+  pag.replaceChildren();
+  const page = Math.floor(state.offset / PAGE_SIZE);
+  const hasNext = rows.length === PAGE_SIZE;
+  const prevBtn = el('button', {}, 'Prev');
+  prevBtn.disabled = page === 0;
+  prevBtn.addEventListener('click', () => goPage(page - 1));
+  const info = el('button', { class: 'page-info' }, 'Page ' + (page + 1));
+  info.disabled = true;
+  const nextBtn = el('button', {}, 'Next');
+  nextBtn.disabled = !hasNext;
+  nextBtn.addEventListener('click', () => goPage(page + 1));
+  pag.append(prevBtn, info, nextBtn);
+}
+
+function setFilter(btn, f) {
+  state.filter = f;
+  state.offset = 0;
+  document.querySelectorAll('.filter-tab').forEach(b => b.classList.toggle('active', b.dataset.filter === f));
+  loadStats();
+  loadConversations();
+}
+
+function setSort(col) {
+  if (state.sort === col) state.order = state.order === 'desc' ? 'asc' : 'desc';
+  else { state.sort = col; state.order = 'desc'; }
+  state.offset = 0;
+  loadConversations();
+}
+
+function onSearch() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    state.query = document.getElementById('searchInput').value.trim();
+    state.offset = 0;
+    loadConversations();
+  }, 300);
+}
+
+function goPage(p) { state.offset = p * PAGE_SIZE; loadConversations(); }
+
+async function showDetail(id) {
+  const c = await api('/conversations/' + encodeURIComponent(id) + '?full=true');
+
+  document.getElementById('modalTitle').textContent = c.title;
+
+  const meta = document.getElementById('modalMeta');
+  meta.replaceChildren();
+  const parts = [
+    (c.started_at || '').slice(0, 10),
+  ];
+  parts.forEach(t => meta.appendChild(el('span', {}, t)));
+  const srcSpan = document.createElement('span');
+  srcSpan.appendChild(el('span', { class: 'source-badge' }, c.source_type));
+  meta.appendChild(srcSpan);
+  if (c.project) meta.appendChild(el('span', {}, 'Project: ' + c.project));
+  if (c.model) meta.appendChild(el('span', {}, 'Model: ' + c.model));
+  meta.appendChild(el('span', {}, c.message_count + ' messages / ' + c.word_count + ' words'));
+  const statusSpan = document.createElement('span');
+  statusSpan.appendChild(el('span', { class: 'badge badge-' + c.status }, c.status));
+  meta.appendChild(statusSpan);
+
+  const container = document.getElementById('modalMessages');
+  container.replaceChildren();
+  (c.messages || []).filter(m => !m.is_context).forEach(m => {
+    const msgDiv = el('div', { class: 'msg' }, [
+      el('div', { class: 'msg-role ' + m.role }, m.role),
+      el('div', { class: 'msg-content' }, m.content),
+      m.timestamp ? el('div', { class: 'msg-time' }, m.timestamp) : null,
+    ]);
+    container.appendChild(msgDiv);
+  });
+
+  document.getElementById('modal').classList.add('open');
+}
+
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+loadStats();
+loadConversations();
+</script>
+</body>
+</html>

@@ -12,15 +12,22 @@ import (
 
 // Handler is the main HTTP handler for the aichatlog-server API.
 type Handler struct {
-	store *storage.Store
-	token string
-	mux   *http.ServeMux
+	store     *storage.Store
+	token     string
+	mux       *http.ServeMux
+	dashboard []byte // embedded dashboard HTML
 }
 
 // NewHandler creates a new API handler.
-func NewHandler(store *storage.Store, token string) *Handler {
-	h := &Handler{store: store, token: token}
+// dashboardHTML may be nil if no dashboard is embedded.
+func NewHandler(store *storage.Store, token string, dashboardHTML []byte) *Handler {
+	h := &Handler{store: store, token: token, dashboard: dashboardHTML}
 	mux := http.NewServeMux()
+
+	// Dashboard
+	if len(dashboardHTML) > 0 {
+		mux.HandleFunc("GET /", h.handleDashboard)
+	}
 
 	mux.HandleFunc("GET /api/health", h.handleHealth)
 	mux.HandleFunc("GET /api/conversations", h.handleListConversations)
@@ -55,6 +62,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.mux.ServeHTTP(w, r)
+}
+
+func (h *Handler) handleDashboard(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write(h.dashboard)
 }
 
 func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {

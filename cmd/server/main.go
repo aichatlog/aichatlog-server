@@ -9,6 +9,7 @@ import (
 
 	"github.com/aichatlog/aichatlog/server/internal/api"
 	"github.com/aichatlog/aichatlog/server/internal/storage"
+	"github.com/aichatlog/aichatlog/server/web"
 )
 
 func main() {
@@ -38,12 +39,13 @@ func main() {
 	}
 	defer store.Close()
 
-	handler := api.NewHandler(store, *token)
+	handler := api.NewHandler(store, *token, web.DashboardHTML)
 
 	addr := fmt.Sprintf(":%d", *port)
 	log.Printf("aichatlog-server starting on %s", addr)
 	log.Printf("  Database: %s", *dbPath)
 	log.Printf("  Data dir: %s", *dataDir)
+	log.Printf("  Dashboard: http://localhost:%d", *port)
 	if *token != "" {
 		log.Printf("  Auth: Bearer token required")
 	} else {
