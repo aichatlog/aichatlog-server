@@ -43,6 +43,11 @@ body { font-family: var(--sans); background: var(--bg-void); color: var(--text-p
 header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
 header h1 { font-size: 20px; font-weight: 600; }
 header .tag { font-size: 11px; background: var(--accent-dim); color: var(--accent); padding: 2px 8px; border-radius: 4px; font-family: var(--mono); }
+.header-spacer { flex: 1; }
+.lang-switch { display: flex; gap: 2px; }
+.lang-btn { background: transparent; border: 1px solid var(--border); color: var(--text-tertiary); padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+.lang-btn:hover { color: var(--text-secondary); border-color: var(--text-secondary); }
+.lang-btn.active { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
 .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-bottom: 20px; }
 .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; text-align: center; cursor: pointer; transition: border-color 0.15s; }
 .stat-card:hover, .stat-card.active { border-color: var(--accent); }
@@ -125,6 +130,12 @@ tr.data-row { cursor: pointer; }
   <header>
     <h1>AIChatLog</h1>
     <span class="tag">SERVER</span>
+    <div class="header-spacer"></div>
+    <div class="lang-switch" id="langSwitch">
+      <button type="button" class="lang-btn" onclick="setLang('en')">EN</button>
+      <button type="button" class="lang-btn" onclick="setLang('zh-CN')">中文</button>
+      <button type="button" class="lang-btn" onclick="setLang('zh-TW')">繁中</button>
+    </div>
   </header>
 
   <nav class="tab-nav">
@@ -272,6 +283,28 @@ const STRINGS = {
 let currentLang = 'en';
 function t(key) { return (STRINGS[currentLang] || STRINGS.en)[key] || STRINGS.en[key] || key; }
 function tf(key, ...args) { let s = t(key); args.forEach(a => s = s.replace('%d', a)); return s; }
+
+async function setLang(lang) {
+  currentLang = lang;
+  // Save to server config
+  try {
+    const cfg = await api('/config');
+    cfg.lang = lang;
+    await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cfg) });
+  } catch(e) {}
+  // Update UI
+  applyI18n();
+  updateLangButtons();
+  loadStats();
+  loadConversations();
+}
+
+function updateLangButtons() {
+  document.querySelectorAll('.lang-btn').forEach(b => {
+    const btnLang = b.textContent === 'EN' ? 'en' : b.textContent === '中文' ? 'zh-CN' : 'zh-TW';
+    b.classList.toggle('active', btnLang === currentLang);
+  });
+}
 
 // Apply i18n to static HTML elements with data-i18n attribute
 function applyI18n() {
@@ -630,6 +663,7 @@ async function loadSettings() {
     if (cfg.lang && STRINGS[cfg.lang]) currentLang = cfg.lang;
   } catch(e) {}
   applyI18n();
+  updateLangButtons();
   loadStats();
   loadConversations();
 })();
