@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AIChatLog Server</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  darkMode: 'media',
+}
+</script>
 <style>
 :root {
   --bg-void: #08090d;
@@ -83,26 +89,35 @@ tr.data-row { cursor: pointer; }
 .modal-close { background: none; border: none; color: var(--text-tertiary); cursor: pointer; font-size: 20px; padding: 4px; }
 .modal-close:hover { color: var(--text-primary); }
 .modal-meta { padding: 16px 24px; display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; color: var(--text-secondary); border-bottom: 1px solid var(--border); }
-.messages-container { padding: 16px 24px; display: flex; flex-direction: column; gap: 12px; }
+.messages-container { padding: 16px 24px; display: flex; flex-direction: column; gap: 16px; }
 /* Chat bubble base */
-.chat-msg { max-width: 85%; display: flex; flex-direction: column; }
-.chat-bubble { padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.6; word-break: break-word; }
-.chat-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 11px; }
-/* User: right-aligned, accent */
+.chat-msg { max-width: 80%; display: flex; flex-direction: column; }
+.chat-bubble { padding: 12px 16px; border-radius: 16px; font-size: 14px; line-height: 1.7; word-break: break-word; }
+.chat-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 11px; font-weight: 500; }
+/* User: right-aligned, blue bubble with white text (iMessage style) */
 .chat-user { align-self: flex-end; }
-.chat-user .chat-bubble { background: var(--accent-dim); border: 1px solid var(--accent); border-bottom-right-radius: 4px; }
-.chat-user .chat-header { justify-content: flex-end; color: var(--accent); }
-/* Assistant: left-aligned, card */
+.chat-user .chat-bubble { background: #3b82f6; color: #ffffff; border-bottom-right-radius: 4px; }
+.chat-user .chat-header { justify-content: flex-end; color: #93c5fd; }
+/* Assistant: left-aligned, subtle card */
 .chat-assistant { align-self: flex-start; }
-.chat-assistant .chat-bubble { background: var(--bg-card); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+.chat-assistant .chat-bubble { background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-primary); border-bottom-left-radius: 4px; }
 .chat-assistant .chat-header { color: var(--green); }
 /* Code blocks inside bubbles */
-.chat-bubble pre { background: var(--bg-void); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; margin: 8px 0; overflow-x: auto; font-family: var(--mono); font-size: 13px; line-height: 1.5; }
-.chat-bubble .code-lang { font-size: 10px; color: var(--text-tertiary); font-family: var(--mono); margin-bottom: -4px; display: block; }
+.chat-bubble pre { background: #0f172a; color: #e2e8f0; border: 1px solid #1e293b; border-radius: 8px; padding: 12px 14px; margin: 8px 0; overflow-x: auto; font-family: var(--mono); font-size: 13px; line-height: 1.5; }
+.chat-user .chat-bubble pre { background: #1e3a5f; color: #e0f2fe; border-color: #2563eb; }
+.chat-bubble .code-lang { font-size: 10px; color: #94a3b8; font-family: var(--mono); margin-bottom: -4px; display: block; }
 /* Token/model info */
 .chat-meta { font-size: 10px; color: var(--text-tertiary); margin-top: 4px; display: flex; gap: 8px; }
 .chat-assistant .chat-meta { justify-content: flex-start; }
 .chat-user .chat-meta { justify-content: flex-end; }
+/* Light mode overrides for chat */
+@media (prefers-color-scheme: light) {
+  .chat-user .chat-bubble { background: #2563eb; color: #ffffff; }
+  .chat-user .chat-header { color: #3b82f6; }
+  .chat-assistant .chat-bubble { background: #f1f5f9; border-color: #e2e8f0; color: #1e293b; }
+  .chat-bubble pre { background: #1e293b; color: #e2e8f0; border-color: #334155; }
+  .chat-user .chat-bubble pre { background: #1e40af; color: #dbeafe; border-color: #1d4ed8; }
+}
 .pagination { display: flex; justify-content: center; gap: 8px; margin-top: 16px; }
 .pagination button { background: var(--bg-card); border: 1px solid var(--border); color: var(--text-secondary); padding: 6px 14px; border-radius: var(--radius); cursor: pointer; }
 .pagination button:hover:not(:disabled) { border-color: var(--accent); }
