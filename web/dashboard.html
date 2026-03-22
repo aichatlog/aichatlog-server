@@ -526,6 +526,10 @@ async function showDetail(id) {
     mkAction(t('reprocess'),'refresh-cw','',async()=>{await fetch('/api/conversations/'+encodeURIComponent(c.id)+'/reprocess',{method:'POST'});closeModal();loadStats();loadConversations();}),
     mkAction(t('extract'),'brain','',async function(){const txt=this.childNodes[1];txt.textContent=' '+t('extracting');const r=await fetch('/api/conversations/'+encodeURIComponent(c.id)+'/extract',{method:'POST'});const res=await r.json();txt.textContent=' '+(res.ok?t('extracted'):t('failed'));}),
   );
+  // Remove old actions if any, then append new
+  const oldAct = document.getElementById('modalActions');
+  if (oldAct) oldAct.remove();
+  actions.id = 'modalActions';
   container.after(actions);
   document.getElementById('modal').classList.add('open');
   lucide.createIcons();
