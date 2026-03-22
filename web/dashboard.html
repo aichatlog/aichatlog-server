@@ -15,6 +15,117 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16/dist/katex.min.css">
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16/dist/katex.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/markdown-it-texmath@1/texmath.min.js"></script>
+<!-- AICHATLOG_UI_JS_START -->
+<script>
+/* AIChatLog shared UI — single source of truth for both dashboards */
+(function() {
+  'use strict';
+
+  // ── Markdown Initialization ──
+  function initMarkdown() {
+    var md = window.markdownit({
+      html: false, linkify: true, typographer: true,
+      highlight: function(str, lang) {
+        if (lang && hljs.getLanguage(lang)) {
+          try { return hljs.highlight(str, {language: lang}).value; } catch(_) {}
+        }
+        try { return hljs.highlightAuto(str).value; } catch(_) {}
+        return '';
+      }
+    });
+    if (window.markdownitFootnote) md.use(window.markdownitFootnote);
+    if (window.texmath) md.use(window.texmath, {engine: katex, delimiters: 'dollars'});
+    return md;
+  }
+
+  // ── XML Tag Processing ──
+  function stripXmlTags(text) {
+    // 1. Large context blocks → badge + code block
+    text = text.replace(/<(system-reminder|ide_selection|available-deferred-tools|task-notification|gitStatus|fast_mode_info|claudeMd|antml:thinking)>([\s\S]*?)<\/\1>/g, function(_, tag, body) {
+      var n = body.trim().split('\n').length;
+      return '\n`[' + tag + ' (' + n + ' lines)]`\n```\n' + body.trim() + '\n```\n';
+    });
+    // 2. File opened tags → file badge
+    text = text.replace(/<ide_opened_file>[^<]*<\/ide_opened_file>/g, function(m) {
+      var f = m.match(/file\s+([^\s]+)/);
+      return f ? '`[Opened: ' + f[1].split('/').pop() + ']`' : '`[file opened]`';
+    });
+    // 3. Command/hook tags → badge + content
+    text = text.replace(/<(command-name|command-message|command-args|local-command-caveat|local-command-stdout|user-prompt-submit-hook)>([\s\S]*?)<\/\1>/g, function(_, tag, body) {
+      return '`[' + tag + ']` ' + body.trim();
+    });
+    // 4. Remaining paired tags (supports : in tag name) → badge + keep content
+    text = text.replace(/<([a-zA-Z][a-zA-Z0-9_:-]*)(?:\s[^>]*)?>(([\s\S]*?))<\/\1>/g, function(_, tag, body) {
+      if (!body.trim()) return '`[' + tag + ']`';
+      return '`[' + tag + ']` ' + body.trim();
+    });
+    // 5. Self-closing tags → badge
+    text = text.replace(/<[a-zA-Z][a-zA-Z0-9_:-]*(?:\s[^>]*)?\s*\/>/g, function(m) {
+      var tag = m.match(/<([a-zA-Z][a-zA-Z0-9_:-]*)/);
+      return tag ? '`[' + tag[1] + ']`' : '';
+    });
+    // 6. Orphan open/close tags → badge
+    text = text.replace(/<\/?([a-zA-Z][a-zA-Z0-9_:-]*)(?:\s[^>]*)?>/g, function(_, tag) {
+      return '`[' + tag + ']`';
+    });
+    return text;
+  }
+
+  // ── Content Rendering ──
+  // Note: Uses DOMPurify.sanitize() to prevent XSS before setting innerHTML
+  function renderContent(parent, text, md) {
+    if (!text) return;
+    text = stripXmlTags(text);
+    var sanitized = DOMPurify.sanitize(md.render(text));
+    var div = document.createElement('div');
+    div.className = 'md-content';
+    div.innerHTML = sanitized;
+    parent.appendChild(div);
+  }
+
+  // ── Theme Management ──
+  var currentTheme = localStorage.getItem('aichatlog-theme') || 'auto';
+
+  function setTheme(mode) {
+    currentTheme = mode;
+    localStorage.setItem('aichatlog-theme', mode);
+    applyTheme();
+    updateThemeButtons();
+  }
+
+  function applyTheme() {
+    var isDark = currentTheme === 'dark' || (currentTheme === 'auto' && window.matchMedia('(prefers-color-scheme:dark)').matches);
+    document.documentElement.classList.toggle('dark', isDark);
+  }
+
+  function updateThemeButtons() {
+    ['auto','light','dark'].forEach(function(m, i) {
+      var b = document.querySelectorAll('.theme-btn')[i];
+      if (b) {
+        b.classList.toggle('!border-blue-500', m === currentTheme);
+        b.classList.toggle('!text-blue-500', m === currentTheme);
+      }
+    });
+  }
+
+  window.matchMedia('(prefers-color-scheme:dark)').addEventListener('change', function() {
+    if (currentTheme === 'auto') applyTheme();
+  });
+
+  // ── Public API ──
+  window.AIChatLogUI = {
+    initMarkdown: initMarkdown,
+    stripXmlTags: stripXmlTags,
+    renderContent: renderContent,
+    setTheme: setTheme,
+    applyTheme: applyTheme,
+    updateThemeButtons: updateThemeButtons,
+    getTheme: function() { return currentTheme; }
+  };
+})();
+
+</script>
+<!-- AICHATLOG_UI_JS_END -->
 <script>
 tailwind.config = {
   darkMode: 'class',
@@ -25,7 +136,12 @@ tailwind.config = {
 <style>
 .tab-panel{display:none}.tab-panel.active{display:block}
 .modal-overlay{display:none}.modal-overlay.open{display:flex}
-/* Prose overrides for chat bubbles */
+</style>
+<!-- AICHATLOG_UI_CSS_START -->
+<style>
+/* AIChatLog shared UI styles — single source of truth for both dashboards */
+
+/* Markdown content */
 .md-content{font-size:14px;line-height:1.7}
 .md-content h1,.md-content h2,.md-content h3{font-size:1em;font-weight:600;margin:0.5em 0 0.25em}
 .md-content p{margin:0.3em 0}
@@ -45,8 +161,13 @@ tailwind.config = {
 .md-content .katex{font-size:1.1em}
 .md-content .task-list-item{list-style:none;margin-left:-1em}
 .md-content .task-list-item input{margin-right:0.5em}
-::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:#64748b;border-radius:3px}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-thumb{background:#64748b;border-radius:3px}
+
 </style>
+<!-- AICHATLOG_UI_CSS_END -->
 </head>
 <body class="bg-gray-50 dark:bg-slate-950 text-gray-900 dark:text-slate-100 min-h-screen antialiased transition-colors duration-200">
 
@@ -175,6 +296,9 @@ const STRINGS = {
     extractions:'Extractions', total_words:'Total words',
     total_tokens_in:'Total tokens (in)', total_tokens_out:'Total tokens (out)',
     tokens_in_out:'Tokens: %d in / %d out', msgs_words:'%d msgs / %d words',
+    base_url:'Base URL', big_model:'Big Model',
+    test_connection:'Test', fetch_models:'Fetch Models',
+    testing:'Testing...', connection_ok:'Connected!', connection_failed:'Failed',
   },
   'zh-CN': {
     conversations:'对话', knowledge:'知识库', timeline:'时间线', settings:'设置',
@@ -196,6 +320,9 @@ const STRINGS = {
     extractions:'提取数', total_words:'总字数',
     total_tokens_in:'总输入 Token', total_tokens_out:'总输出 Token',
     tokens_in_out:'Token: %d 输入 / %d 输出', msgs_words:'%d 条消息 / %d 字',
+    base_url:'基础 URL', big_model:'大模型',
+    test_connection:'测试连接', fetch_models:'获取模型',
+    testing:'测试中...', connection_ok:'连接成功！', connection_failed:'连接失败',
   },
   'zh-TW': {
     conversations:'對話', knowledge:'知識庫', timeline:'時間線', settings:'設定',
@@ -217,6 +344,9 @@ const STRINGS = {
     extractions:'擷取數', total_words:'總字數',
     total_tokens_in:'總輸入 Token', total_tokens_out:'總輸出 Token',
     tokens_in_out:'Token: %d 輸入 / %d 輸出', msgs_words:'%d 則訊息 / %d 字',
+    base_url:'基礎 URL', big_model:'大模型',
+    test_connection:'測試連線', fetch_models:'取得模型',
+    testing:'測試中...', connection_ok:'連線成功！', connection_failed:'連線失敗',
   },
 };
 let currentLang = 'en';
@@ -242,20 +372,10 @@ function updateLangButtons() {
   });
 }
 
-// ── Theme ──
-let currentTheme = 'auto';
-function setTheme(mode) { currentTheme=mode; localStorage.setItem('aichatlog-theme',mode); applyTheme(); updateThemeButtons(); }
-function applyTheme() {
-  const isDark = currentTheme==='dark'||(currentTheme==='auto'&&window.matchMedia('(prefers-color-scheme:dark)').matches);
-  document.documentElement.classList.toggle('dark',isDark);
-}
-function updateThemeButtons() {
-  ['auto','light','dark'].forEach((m,i) => {
-    const b=document.querySelectorAll('.theme-btn')[i];
-    if(b){b.classList.toggle('!border-blue-500',m===currentTheme);b.classList.toggle('!text-blue-500',m===currentTheme);}
-  });
-}
-window.matchMedia('(prefers-color-scheme:dark)').addEventListener('change',()=>{ if(currentTheme==='auto') applyTheme(); });
+// ── Theme (delegated to AIChatLogUI) ──
+function setTheme(mode) { AIChatLogUI.setTheme(mode); }
+function applyTheme() { AIChatLogUI.applyTheme(); }
+function updateThemeButtons() { AIChatLogUI.updateThemeButtons(); }
 
 // ── Helpers ──
 const PAGE_SIZE = 50;
@@ -415,59 +535,7 @@ async function showDetail(id) {
 
   const container = document.getElementById('modalMessages');
   container.replaceChildren();
-  // markdown-it initialization
-  const md = window.markdownit({
-    html: false, linkify: true, typographer: true,
-    highlight: function(str, lang) {
-      if (lang && hljs.getLanguage(lang)) {
-        try { return hljs.highlight(str, {language: lang}).value; } catch(_) {}
-      }
-      try { return hljs.highlightAuto(str).value; } catch(_) {}
-      return '';
-    }
-  });
-  if (window.markdownitFootnote) md.use(window.markdownitFootnote);
-  if (window.texmath) md.use(window.texmath, {engine: katex, delimiters: 'dollars'});
-
-  function stripXmlTags(text) {
-    // 1. Large context blocks → badge + code block (tag names support a-z, :, -, _)
-    text = text.replace(/<(system-reminder|ide_selection|available-deferred-tools|task-notification|gitStatus|fast_mode_info|claudeMd|antml:thinking)>([\s\S]*?)<\/\1>/g, (_, tag, body) => {
-      const n = body.trim().split('\n').length;
-      return '\n`[' + tag + ' (' + n + ' lines)]`\n```\n' + body.trim() + '\n```\n';
-    });
-    // 2. File opened tags → file badge
-    text = text.replace(/<ide_opened_file>[^<]*<\/ide_opened_file>/g, m => {
-      const f = m.match(/file\s+([^\s]+)/);
-      return f ? '`[Opened: ' + f[1].split('/').pop() + ']`' : '`[file opened]`';
-    });
-    // 3. Command/hook tags → badge + content
-    text = text.replace(/<(command-name|command-message|command-args|local-command-caveat|local-command-stdout|user-prompt-submit-hook)>([\s\S]*?)<\/\1>/g, (_, tag, body) => {
-      return '`[' + tag + ']` ' + body.trim();
-    });
-    // 4. Remaining paired tags (supports : in tag name) → badge + keep content
-    text = text.replace(/<([a-zA-Z][a-zA-Z0-9_:-]*)(?:\s[^>]*)?>(([\s\S]*?))<\/\1>/g, (_, tag, body) => {
-      if (!body.trim()) return '`[' + tag + ']`';
-      return '`[' + tag + ']` ' + body.trim();
-    });
-    // 5. Self-closing tags → badge
-    text = text.replace(/<[a-zA-Z][a-zA-Z0-9_:-]*(?:\s[^>]*)?\s*\/>/g, m => {
-      const tag = m.match(/<([a-zA-Z][a-zA-Z0-9_:-]*)/);
-      return tag ? '`[' + tag[1] + ']`' : '';
-    });
-    // 6. Orphan open/close tags → badge
-    text = text.replace(/<\/?([a-zA-Z][a-zA-Z0-9_:-]*)(?:\s[^>]*)?>/g, (_, tag) => '`[' + tag + ']`');
-    return text;
-  }
-
-  function renderContent(parent, text) {
-    if (!text) return;
-    text = stripXmlTags(text);
-    const html = DOMPurify.sanitize(md.render(text));
-    const div = document.createElement('div');
-    div.className = 'md-content';
-    div.innerHTML = html;
-    parent.appendChild(div);
-  }
+  const md = AIChatLogUI.initMarkdown();
   (c.messages||[]).filter(m=>!m.is_context).forEach(m=>{
     const isU=m.role==='user';
     const div=document.createElement('div');
@@ -482,7 +550,7 @@ async function showDetail(id) {
     bubble.className=isU
       ?'rounded-2xl rounded-br-sm px-4 py-3 bg-blue-500 text-white text-sm leading-relaxed'
       :'rounded-2xl rounded-bl-sm px-4 py-3 bg-gray-100 dark:bg-slate-800 text-gray-900 dark:text-slate-200 text-sm leading-relaxed border border-gray-200 dark:border-slate-700/50';
-    renderContent(bubble,m.content);
+    AIChatLogUI.renderContent(bubble,m.content,md);
     div.appendChild(bubble);
     if(!isU&&(m.input_tokens||m.output_tokens)){const tk=document.createElement('div');tk.className='text-[10px] '+C.text4+' mt-1 flex items-center gap-1';tk.innerHTML=`<i data-lucide="coins" class="w-3 h-3"></i> ${(m.input_tokens/1000).toFixed(1)}k in / ${(m.output_tokens/1000).toFixed(1)}k out`;div.appendChild(tk);}
     container.appendChild(div);
@@ -572,10 +640,32 @@ async function loadSettings() {
   const llSel=si(['none','anthropic','openai','ollama'],llan,'sLAdp');
   rw(lls,t('adapter'),llSel);
   const llf=document.createElement('div');llf.id='sLFields';lls.appendChild(llf);
+  function llmBtnRow(c2,adapter,getUrl,getKey,modIds){
+    const br=document.createElement('div');br.className='flex items-center gap-2 py-2';
+    const tb=document.createElement('button');tb.className='px-3 py-1.5 text-xs rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-colors';tb.textContent=t('test_connection');
+    const fb=document.createElement('button');fb.className='px-3 py-1.5 text-xs rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors';fb.textContent=t('fetch_models');
+    const st=document.createElement('span');st.className='text-xs ml-2';
+    br.append(tb,fb,st);c2.appendChild(br);
+    tb.onclick=async()=>{st.textContent=t('testing');st.className='text-xs ml-2 text-amber-500';
+      try{const r=await fetch('/api/llm/test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({adapter,base_url:getUrl(),api_key:getKey()})});const d=await r.json();
+        if(d.ok){st.textContent=t('connection_ok');st.className='text-xs ml-2 text-emerald-500';}
+        else{st.textContent=d.error||t('connection_failed');st.className='text-xs ml-2 text-red-500';}
+      }catch(e){st.textContent=t('connection_failed');st.className='text-xs ml-2 text-red-500';}};
+    fb.onclick=async()=>{st.textContent=t('testing');st.className='text-xs ml-2 text-amber-500';
+      try{const r=await fetch('/api/llm/models',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({adapter,base_url:getUrl(),api_key:getKey()})});const d=await r.json();
+        if(d.ok&&d.models?.length){st.textContent='';modIds.forEach(mid=>{const inp=document.getElementById(mid);if(!inp)return;
+          let dl=document.getElementById(mid+'List');if(!dl){dl=document.createElement('datalist');dl.id=mid+'List';inp.parentNode.appendChild(dl);inp.setAttribute('list',mid+'List');}
+          dl.replaceChildren();d.models.forEach(m=>{const o=document.createElement('option');o.value=m;dl.appendChild(o);});});
+          st.textContent=d.models.length+' models';st.className='text-xs ml-2 text-emerald-500';}
+        else{st.textContent=d.error||t('connection_failed');st.className='text-xs ml-2 text-red-500';}
+      }catch(e){st.textContent=t('connection_failed');st.className='text-xs ml-2 text-red-500';}};
+  }
   function renderLF(n){const c2=document.getElementById('sLFields');c2.replaceChildren();
-    if(n==='anthropic'){rw(c2,'API Key',pi('','sLAKey'));rw(c2,'Model',ti(cfg.llm?.anthropic?.model||'claude-haiku-4-5-20251001','sLAMod'));rw(c2,'Big Model',ti(cfg.llm?.anthropic?.big_model||'claude-sonnet-4-20250514','sLABig'));}
-    else if(n==='openai'){rw(c2,'API Key',pi('','sLOKey'));rw(c2,'Base URL',ti(cfg.llm?.openai?.base_url||'https://api.openai.com/v1','sLOUrl'));rw(c2,'Model',ti(cfg.llm?.openai?.model||'gpt-4o-mini','sLOMod'));rw(c2,'Big Model',ti(cfg.llm?.openai?.big_model||'gpt-4o','sLOBig'));}
-    else if(n==='ollama'){rw(c2,'Model',ti(cfg.llm?.openai?.model||'llama3.2','sLOlMod'));}}
+    if(n==='anthropic'){rw(c2,'API Key',pi('','sLAKey'));rw(c2,t('model'),ti(cfg.llm?.anthropic?.model||'claude-haiku-4-5-20251001','sLAMod'));rw(c2,t('big_model'),ti(cfg.llm?.anthropic?.big_model||'claude-sonnet-4-20250514','sLABig'));}
+    else if(n==='openai'){rw(c2,'API Key',pi('','sLOKey'));rw(c2,t('base_url'),ti(cfg.llm?.openai?.base_url||'https://api.openai.com/v1','sLOUrl'));rw(c2,t('model'),ti(cfg.llm?.openai?.model||'gpt-4o-mini','sLOMod'));rw(c2,t('big_model'),ti(cfg.llm?.openai?.big_model||'gpt-4o','sLOBig'));
+      llmBtnRow(c2,'openai',()=>document.getElementById('sLOUrl')?.value||'',()=>document.getElementById('sLOKey')?.value||'',['sLOMod','sLOBig']);}
+    else if(n==='ollama'){rw(c2,t('base_url'),ti((cfg.llm?.openai?.base_url||'http://localhost:11434/v1').replace(/\/v1\/?$/,''),'sLOlUrl'));rw(c2,t('model'),ti(cfg.llm?.openai?.model||'llama3.2','sLOlMod'));rw(c2,t('big_model'),ti(cfg.llm?.openai?.big_model||'','sLOlBig'));
+      llmBtnRow(c2,'ollama',()=>document.getElementById('sLOlUrl')?.value||'',()=>'',['sLOlMod','sLOlBig']);}}
   renderLF(llan);llSel.onchange=()=>renderLF(llSel.value);
   rw(lls,t('min_words'),ni(cfg.llm?.min_words||100,'sLMin'));
 
@@ -599,6 +689,7 @@ async function loadSettings() {
     const la=newCfg.llm.adapter;
     if(la==='anthropic'){newCfg.llm.anthropic={model:document.getElementById('sLAMod')?.value||'',big_model:document.getElementById('sLABig')?.value||''};const k=document.getElementById('sLAKey')?.value;if(k)newCfg.llm.anthropic.api_key=k;}
     else if(la==='openai'){newCfg.llm.openai={base_url:document.getElementById('sLOUrl')?.value||'',model:document.getElementById('sLOMod')?.value||'',big_model:document.getElementById('sLOBig')?.value||''};const k=document.getElementById('sLOKey')?.value;if(k)newCfg.llm.openai.api_key=k;}
+    else if(la==='ollama'){const bu=document.getElementById('sLOlUrl')?.value||'http://localhost:11434';newCfg.llm.openai={base_url:bu.replace(/\/+$/,'')+'/v1',model:document.getElementById('sLOlMod')?.value||'llama3.2',big_model:document.getElementById('sLOlBig')?.value||''};}
     await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(newCfg)});
     currentLang=newCfg.lang;applyI18n();updateLangButtons();
     stMsg.textContent='✅ Saved! Restart server to apply.';stMsg.className='text-xs self-center ml-2 text-emerald-500';setTimeout(()=>{stMsg.textContent='';},3000);
