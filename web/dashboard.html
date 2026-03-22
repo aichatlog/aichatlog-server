@@ -211,10 +211,16 @@ function t(key) { return (STRINGS[currentLang] || STRINGS.en)[key] || STRINGS.en
 function tf(key, ...args) { let s = t(key); args.forEach(a => s = s.replace('%d', a)); return s; }
 function applyI18n() {
   document.querySelectorAll('[data-i18n]').forEach(el => {
-    const icon = el.querySelector('i');
     const text = t(el.dataset.i18n);
-    if (icon) { el.childNodes.forEach(n => { if (n.nodeType === 3) n.textContent = ' ' + text; }); }
-    else { el.textContent = text; }
+    const icon = el.querySelector('i, svg');
+    if (icon) {
+      // Preserve icon, replace only the text part
+      const textNode = Array.from(el.childNodes).find(n => n.nodeType === 3 && n.textContent.trim());
+      if (textNode) { textNode.textContent = ' ' + text; }
+      else { el.appendChild(document.createTextNode(' ' + text)); }
+    } else {
+      el.textContent = text;
+    }
   });
   document.querySelectorAll('[data-i18n-placeholder]').forEach(el => { el.placeholder = t(el.dataset.i18nPlaceholder); });
 }
