@@ -83,13 +83,26 @@ tr.data-row { cursor: pointer; }
 .modal-close { background: none; border: none; color: var(--text-tertiary); cursor: pointer; font-size: 20px; padding: 4px; }
 .modal-close:hover { color: var(--text-primary); }
 .modal-meta { padding: 16px 24px; display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; color: var(--text-secondary); border-bottom: 1px solid var(--border); }
-.messages-container { padding: 16px 24px; }
-.msg { margin-bottom: 16px; }
-.msg-role { font-size: 12px; font-weight: 600; margin-bottom: 4px; font-family: var(--mono); }
-.msg-role.user { color: var(--accent); }
-.msg-role.assistant { color: var(--green); }
-.msg-content { font-size: 14px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; background: var(--bg-card); padding: 12px 16px; border-radius: var(--radius); border: 1px solid var(--border); }
-.msg-time { font-size: 11px; color: var(--text-tertiary); margin-top: 4px; }
+.messages-container { padding: 16px 24px; display: flex; flex-direction: column; gap: 12px; }
+/* Chat bubble base */
+.chat-msg { max-width: 85%; display: flex; flex-direction: column; }
+.chat-bubble { padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.6; word-break: break-word; }
+.chat-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 11px; }
+/* User: right-aligned, accent */
+.chat-user { align-self: flex-end; }
+.chat-user .chat-bubble { background: var(--accent-dim); border: 1px solid var(--accent); border-bottom-right-radius: 4px; }
+.chat-user .chat-header { justify-content: flex-end; color: var(--accent); }
+/* Assistant: left-aligned, card */
+.chat-assistant { align-self: flex-start; }
+.chat-assistant .chat-bubble { background: var(--bg-card); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+.chat-assistant .chat-header { color: var(--green); }
+/* Code blocks inside bubbles */
+.chat-bubble pre { background: var(--bg-void); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; margin: 8px 0; overflow-x: auto; font-family: var(--mono); font-size: 13px; line-height: 1.5; }
+.chat-bubble .code-lang { font-size: 10px; color: var(--text-tertiary); font-family: var(--mono); margin-bottom: -4px; display: block; }
+/* Token/model info */
+.chat-meta { font-size: 10px; color: var(--text-tertiary); margin-top: 4px; display: flex; gap: 8px; }
+.chat-assistant .chat-meta { justify-content: flex-start; }
+.chat-user .chat-meta { justify-content: flex-end; }
 .pagination { display: flex; justify-content: center; gap: 8px; margin-top: 16px; }
 .pagination button { background: var(--bg-card); border: 1px solid var(--border); color: var(--text-secondary); padding: 6px 14px; border-radius: var(--radius); cursor: pointer; }
 .pagination button:hover:not(:disabled) { border-color: var(--accent); }
@@ -493,12 +506,81 @@ async function showDetail(id) {
 
   const container = document.getElementById('modalMessages');
   container.replaceChildren();
+
+  // Parse content: extract code blocks, render text + code
+  function renderContent(parent, text) {
+    if (!text) return;
+    const codePattern = /```(\w*)\n([\s\S]*?)```/g;
+    let lastIdx = 0;
+    let m2;
+    while ((m2 = codePattern.exec(text)) !== null) {
+      if (m2.index > lastIdx) {
+        const span = document.createElement('span');
+        span.style.whiteSpace = 'pre-wrap';
+        span.textContent = text.slice(lastIdx, m2.index);
+        parent.appendChild(span);
+      }
+      const lang = m2[1];
+      const code = m2[2];
+      if (lang) {
+        const langLabel = document.createElement('span');
+        langLabel.className = 'code-lang';
+        langLabel.textContent = lang;
+        parent.appendChild(langLabel);
+      }
+      const pre = document.createElement('pre');
+      const codeEl = document.createElement('code');
+      codeEl.textContent = code.trimEnd();
+      pre.appendChild(codeEl);
+      parent.appendChild(pre);
+      lastIdx = m2.index + m2[0].length;
+    }
+    if (lastIdx < text.length) {
+      const span = document.createElement('span');
+      span.style.whiteSpace = 'pre-wrap';
+      span.textContent = text.slice(lastIdx);
+      parent.appendChild(span);
+    }
+  }
+
   (c.messages || []).filter(m => !m.is_context).forEach(m => {
-    const msgDiv = el('div', { class: 'msg' }, [
-      el('div', { class: 'msg-role ' + m.role }, m.role),
-      el('div', { class: 'msg-content' }, m.content),
-      m.timestamp ? el('div', { class: 'msg-time' }, m.timestamp) : null,
-    ]);
+    const isUser = m.role === 'user';
+    const msgDiv = document.createElement('div');
+    msgDiv.className = 'chat-msg ' + (isUser ? 'chat-user' : 'chat-assistant');
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'chat-header';
+    const roleLabel = document.createElement('span');
+    roleLabel.textContent = isUser ? 'User' : 'Assistant';
+    header.appendChild(roleLabel);
+    if (m.timestamp) {
+      const ts = document.createElement('span');
+      ts.textContent = (m.timestamp || '').replace('T', ' ').slice(11, 19);
+      header.appendChild(ts);
+    }
+    if (!isUser && m.model) {
+      const modelSpan = document.createElement('span');
+      modelSpan.textContent = m.model.replace('claude-', '').replace(/-2025\d+/, '');
+      modelSpan.style.opacity = '0.6';
+      header.appendChild(modelSpan);
+    }
+    msgDiv.appendChild(header);
+
+    // Bubble
+    const bubble = document.createElement('div');
+    bubble.className = 'chat-bubble';
+    renderContent(bubble, m.content);
+    msgDiv.appendChild(bubble);
+
+    // Token meta for assistant
+    if (!isUser && (m.input_tokens || m.output_tokens)) {
+      const tokenMeta = document.createElement('div');
+      tokenMeta.className = 'chat-meta';
+      tokenMeta.textContent = (m.input_tokens/1000).toFixed(1) + 'k in / ' + (m.output_tokens/1000).toFixed(1) + 'k out';
+      msgDiv.appendChild(tokenMeta);
+    }
+
     container.appendChild(msgDiv);
   });
 
