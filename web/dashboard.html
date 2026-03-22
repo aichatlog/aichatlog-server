@@ -458,20 +458,76 @@ async function loadTimeline() {
 }
 async function loadSettings() {
   const cfg=await api('/config'), summary=await api('/stats/summary');
-  const container=document.getElementById('settingsContent'); container.replaceChildren();
-  function section(title,items){const s=document.createElement('div');s.className=C.section;
-    s.innerHTML=`<h3 class="text-sm font-semibold ${C.text1} mb-3 flex items-center gap-2">${title}</h3>`;
-    items.forEach(([k,v])=>{s.innerHTML+=`<div class="flex justify-between py-1.5 text-xs"><span class="${C.text2}">${k}</span><span class="font-mono ${C.text1}">${v??0}</span></div>`;});
-    container.appendChild(s);}
-  section(`<i data-lucide="bar-chart-3" class="w-4 h-4"></i> ${t('overview')}`,[
-    [t('conversations_count'),summary.total],[t('projects'),summary.project_count],[t('extractions'),summary.extraction_count],
-    [t('total_words'),summary.total_words?.toLocaleString()],[t('total_tokens_in'),summary.total_input_tokens?.toLocaleString()],[t('total_tokens_out'),summary.total_output_tokens?.toLocaleString()]]);
-  section(`<i data-lucide="upload-cloud" class="w-4 h-4"></i> ${t('output_adapter')}`,[
-    [t('adapter'),cfg.output?.adapter||'none'],...(cfg.output?.local?[[t('path'),cfg.output.local.path]]:[]),...(cfg.output?.fns?[['FNS URL',cfg.output.fns.url]]:[]),...(cfg.output?.git?[['Git repo',cfg.output.git.repo_path]]:[])])
-  section(`<i data-lucide="brain" class="w-4 h-4"></i> ${t('llm_extraction')}`,[
-    [t('adapter'),cfg.llm?.adapter||'none'],[t('min_words'),cfg.llm?.min_words||100]]);
-  section(`<i data-lucide="cpu" class="w-4 h-4"></i> ${t('processor')}`,[
-    [t('enabled'),cfg.processor?.enabled??true],[t('interval'),(cfg.processor?.interval_seconds||30)+'s'],[t('batch_size'),cfg.processor?.batch_size||20],[t('sync_dir'),cfg.processor?.sync_dir||'aichatlog']]);
+  const f=document.getElementById('settingsContent'); f.replaceChildren();
+  const sec=(title,ic)=>{const s=document.createElement('div');s.className=C.section;s.innerHTML=`<h3 class="text-sm font-semibold ${C.text1} mb-4 flex items-center gap-2"><i data-lucide="${ic}" class="w-4 h-4"></i> ${title}</h3>`;f.appendChild(s);return s;};
+  const rw=(p,lbl,inp)=>{const r=document.createElement('div');r.className='flex items-center justify-between gap-4 py-2';const l=document.createElement('label');l.className='text-xs '+C.text2+' min-w-[120px]';l.textContent=lbl;r.append(l,inp);p.appendChild(r);};
+  const ti=(v,id)=>{const i=document.createElement('input');i.type='text';i.id=id;i.value=v||'';i.className='flex-1 px-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg '+C.text1+' focus:outline-none focus:border-blue-500';return i;};
+  const pi=(v,id)=>{const i=ti(v,id);i.type='password';return i;};
+  const ni=(v,id)=>{const i=ti(v,id);i.type='number';i.value=v??'';return i;};
+  const si=(opts,v,id)=>{const s=document.createElement('select');s.id=id;s.className='flex-1 px-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg '+C.text1+' focus:outline-none focus:border-blue-500';opts.forEach(o=>{const opt=document.createElement('option');opt.value=o;opt.textContent=o;if(o===v)opt.selected=true;s.appendChild(opt);});return s;};
+  const cb=(v,id)=>{const i=document.createElement('input');i.type='checkbox';i.id=id;i.checked=!!v;i.className='w-4 h-4 accent-blue-500';return i;};
+
+  // Overview (read-only)
+  const ov=sec(t('overview'),'bar-chart-3');
+  [[t('conversations_count'),summary.total],[t('projects'),summary.project_count],[t('extractions'),summary.extraction_count],[t('total_words'),summary.total_words?.toLocaleString()],[t('total_tokens_in'),summary.total_input_tokens?.toLocaleString()],[t('total_tokens_out'),summary.total_output_tokens?.toLocaleString()]].forEach(([k,v])=>{
+    ov.innerHTML+=`<div class="flex justify-between py-1.5 text-xs"><span class="${C.text2}">${k}</span><span class="font-mono ${C.text1}">${v??0}</span></div>`;});
+
+  // Language
+  const ls=sec('Language','globe');
+  rw(ls,'Language',si(['en','zh-CN','zh-TW'],cfg.lang||'en','sLang'));
+
+  // Output Adapter
+  const os=sec(t('output_adapter'),'upload-cloud');
+  const oan=cfg.output?.adapter||'none';
+  const oaSel=si(['none','local','fns','git','webhook'],oan,'sOAdp');
+  rw(os,t('adapter'),oaSel);
+  const oaf=document.createElement('div');oaf.id='sOFields';os.appendChild(oaf);
+  function renderOF(n){const c2=document.getElementById('sOFields');c2.replaceChildren();
+    if(n==='local'){rw(c2,t('path'),ti(cfg.output?.local?.path,'sOLPath'));}
+    else if(n==='fns'){rw(c2,'URL',ti(cfg.output?.fns?.url,'sOFUrl'));rw(c2,'Token',pi('','sOFTok'));rw(c2,'Vault',ti(cfg.output?.fns?.vault,'sOFVlt'));}
+    else if(n==='git'){rw(c2,'Repo Path',ti(cfg.output?.git?.repo_path,'sOGRepo'));rw(c2,'Auto Push',cb(cfg.output?.git?.auto_push,'sOGPush'));}
+    else if(n==='webhook'){rw(c2,'URL',ti(cfg.output?.webhook?.url,'sOWUrl'));}}
+  renderOF(oan);oaSel.onchange=()=>renderOF(oaSel.value);
+
+  // LLM
+  const lls=sec(t('llm_extraction'),'brain');
+  const llan=cfg.llm?.adapter||'none';
+  const llSel=si(['none','anthropic','openai','ollama'],llan,'sLAdp');
+  rw(lls,t('adapter'),llSel);
+  const llf=document.createElement('div');llf.id='sLFields';lls.appendChild(llf);
+  function renderLF(n){const c2=document.getElementById('sLFields');c2.replaceChildren();
+    if(n==='anthropic'){rw(c2,'API Key',pi('','sLAKey'));rw(c2,'Model',ti(cfg.llm?.anthropic?.model||'claude-haiku-4-5-20251001','sLAMod'));rw(c2,'Big Model',ti(cfg.llm?.anthropic?.big_model||'claude-sonnet-4-20250514','sLABig'));}
+    else if(n==='openai'){rw(c2,'API Key',pi('','sLOKey'));rw(c2,'Base URL',ti(cfg.llm?.openai?.base_url||'https://api.openai.com/v1','sLOUrl'));rw(c2,'Model',ti(cfg.llm?.openai?.model||'gpt-4o-mini','sLOMod'));rw(c2,'Big Model',ti(cfg.llm?.openai?.big_model||'gpt-4o','sLOBig'));}
+    else if(n==='ollama'){rw(c2,'Model',ti(cfg.llm?.openai?.model||'llama3.2','sLOlMod'));}}
+  renderLF(llan);llSel.onchange=()=>renderLF(llSel.value);
+  rw(lls,t('min_words'),ni(cfg.llm?.min_words||100,'sLMin'));
+
+  // Processor
+  const ps=sec(t('processor'),'cpu');
+  rw(ps,t('enabled'),cb(cfg.processor?.enabled??true,'sPEn'));
+  rw(ps,t('interval')+' (s)',ni(cfg.processor?.interval_seconds||30,'sPInt'));
+  rw(ps,t('batch_size'),ni(cfg.processor?.batch_size||20,'sPBat'));
+  rw(ps,t('sync_dir'),ti(cfg.processor?.sync_dir||'aichatlog','sPDir'));
+
+  // Save button
+  const br=document.createElement('div');br.className='flex gap-2 mt-4';
+  const svB=document.createElement('button');svB.className='flex items-center gap-1.5 px-4 py-2 text-xs rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors';svB.innerHTML=`<i data-lucide="save" class="w-3.5 h-3.5"></i> Save`;
+  svB.onclick=async()=>{
+    const newCfg={lang:document.getElementById('sLang').value,output:{adapter:document.getElementById('sOAdp').value},processor:{enabled:document.getElementById('sPEn').checked,interval_seconds:parseInt(document.getElementById('sPInt').value)||30,batch_size:parseInt(document.getElementById('sPBat').value)||20,sync_dir:document.getElementById('sPDir').value},llm:{adapter:document.getElementById('sLAdp').value,min_words:parseInt(document.getElementById('sLMin').value)||100}};
+    const oa=newCfg.output.adapter;
+    if(oa==='local')newCfg.output.local={path:document.getElementById('sOLPath')?.value||''};
+    else if(oa==='fns'){newCfg.output.fns={url:document.getElementById('sOFUrl')?.value||'',vault:document.getElementById('sOFVlt')?.value||''};const tk=document.getElementById('sOFTok')?.value;if(tk)newCfg.output.fns.token=tk;}
+    else if(oa==='git'){newCfg.output.git={repo_path:document.getElementById('sOGRepo')?.value||'',auto_push:document.getElementById('sOGPush')?.checked||false};}
+    else if(oa==='webhook'){newCfg.output.webhook={url:document.getElementById('sOWUrl')?.value||''};}
+    const la=newCfg.llm.adapter;
+    if(la==='anthropic'){newCfg.llm.anthropic={model:document.getElementById('sLAMod')?.value||'',big_model:document.getElementById('sLABig')?.value||''};const k=document.getElementById('sLAKey')?.value;if(k)newCfg.llm.anthropic.api_key=k;}
+    else if(la==='openai'){newCfg.llm.openai={base_url:document.getElementById('sLOUrl')?.value||'',model:document.getElementById('sLOMod')?.value||'',big_model:document.getElementById('sLOBig')?.value||''};const k=document.getElementById('sLOKey')?.value;if(k)newCfg.llm.openai.api_key=k;}
+    await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(newCfg)});
+    currentLang=newCfg.lang;applyI18n();updateLangButtons();
+    stMsg.textContent='✅ Saved! Restart server to apply.';stMsg.className='text-xs self-center ml-2 text-emerald-500';setTimeout(()=>{stMsg.textContent='';},3000);
+  };
+  const stMsg=document.createElement('span');stMsg.className='text-xs self-center ml-2';
+  br.append(svB,stMsg);f.appendChild(br);
   lucide.createIcons();
 }
 
