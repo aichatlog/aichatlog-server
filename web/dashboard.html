@@ -66,9 +66,19 @@ tailwind.config = {
         <button class="filter-tab px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition-colors" data-filter="ignored" onclick="setFilter(this, 'ignored')" data-i18n="ignored">Ignored</button>
       </div>
     </div>
+    <!-- Batch action bar (hidden until items selected) -->
+    <div id="batchBar" class="hidden mb-3 flex items-center gap-3 px-4 py-2.5 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30">
+      <span id="batchCount" class="text-xs font-medium text-blue-600 dark:text-blue-400"></span>
+      <div class="flex-1"></div>
+      <button type="button" onclick="batchAction('reprocess')" class="flex items-center gap-1.5 px-3 py-1 text-xs rounded-lg bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-300 hover:border-blue-400 transition-colors"><i data-lucide="refresh-cw" class="w-3 h-3"></i> <span data-i18n="reprocess">Reprocess</span></button>
+      <button type="button" onclick="batchAction('delete')" class="flex items-center gap-1.5 px-3 py-1 text-xs rounded-lg bg-white dark:bg-slate-800 border border-red-200 dark:border-red-500/30 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"><i data-lucide="trash-2" class="w-3 h-3"></i> <span data-i18n="delete">Delete</span></button>
+      <button type="button" onclick="clearSelection()" class="text-xs text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors">✕</button>
+    </div>
+
     <div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 overflow-hidden">
       <table class="w-full">
         <thead><tr class="border-b border-gray-200 dark:border-slate-800">
+          <th class="w-10 px-3 py-3" aria-label="Select all"><input type="checkbox" id="selectAll" title="Select all" onchange="toggleSelectAll(this.checked)" class="w-3.5 h-3.5 rounded border-gray-300 dark:border-slate-600 accent-blue-500 cursor-pointer"></th>
           <th class="text-left text-xs font-medium text-gray-400 dark:text-slate-500 px-4 py-3 cursor-pointer hover:text-gray-600 dark:hover:text-slate-300" onclick="setSort('started_at')" data-i18n="date">Date</th>
           <th class="text-left text-xs font-medium text-gray-400 dark:text-slate-500 px-4 py-3 cursor-pointer hover:text-gray-600 dark:hover:text-slate-300" onclick="setSort('title')" data-i18n="title">Title</th>
           <th class="text-left text-xs font-medium text-gray-400 dark:text-slate-500 px-4 py-3 cursor-pointer hover:text-gray-600 dark:hover:text-slate-300" onclick="setSort('project')" data-i18n="project">Project</th>
@@ -271,18 +281,19 @@ async function loadConversations() {
   tbody.replaceChildren();
   if(!rows.length) {
     const tr=document.createElement('tr'),td=document.createElement('td');
-    td.colSpan=9; td.className=C.empty; td.textContent=t('no_conversations');
+    td.colSpan=10; td.className=C.empty; td.textContent=t('no_conversations');
     tr.appendChild(td); tbody.appendChild(tr);
     document.getElementById('pagination').replaceChildren(); return;
   }
   rows.forEach(c => {
     const tr = document.createElement('tr');
     tr.className = C.row;
-    tr.onclick = () => showDetail(c.id);
+    tr.onclick = (e) => { if(e.target.type!=='checkbox') showDetail(c.id); };
     const ms = (c.model||'').replace('claude-','').replace(/-2025\d+/,'');
     const tok = (c.total_input_tokens||c.total_output_tokens) ? (c.total_input_tokens/1000).toFixed(1)+'k/'+(c.total_output_tokens/1000).toFixed(1)+'k' : '';
     const sc = statusColor(c.status);
     tr.innerHTML = `
+      <td class="w-10 px-3 py-3"><input type="checkbox" title="Select" data-id="${c.id}" onchange="updateSelection()" class="row-check w-3.5 h-3.5 rounded border-gray-300 dark:border-slate-600 accent-blue-500 cursor-pointer"></td>
       <td class="px-4 py-3 text-xs font-mono ${C.text2} whitespace-nowrap">${(c.started_at||'').slice(0,10)}</td>
       <td class="px-4 py-3 text-sm ${C.text1} max-w-[300px] truncate">${esc(c.title)}${c.has_code?' <span class="text-blue-500 text-[10px]">&lt;/&gt;</span>':''}</td>
       <td class="px-4 py-3 text-sm ${C.text2}">${esc(c.project)||'—'}</td>
@@ -310,6 +321,50 @@ function setFilter(btn,f) {
 function setSort(col){if(state.sort===col)state.order=state.order==='desc'?'asc':'desc';else{state.sort=col;state.order='desc';}state.offset=0;loadConversations();}
 function onSearch(){clearTimeout(searchTimer);searchTimer=setTimeout(()=>{state.query=document.getElementById('searchInput').value.trim();state.offset=0;loadConversations();},300);}
 function goPage(p){state.offset=p*PAGE_SIZE;loadConversations();}
+
+// ── Batch Selection ──
+function getSelectedIds() {
+  return Array.from(document.querySelectorAll('.row-check:checked')).map(cb => cb.dataset.id);
+}
+function updateSelection() {
+  const ids = getSelectedIds();
+  const bar = document.getElementById('batchBar');
+  const countEl = document.getElementById('batchCount');
+  if (ids.length > 0) {
+    bar.classList.remove('hidden');
+    bar.classList.add('flex');
+    countEl.textContent = ids.length + ' selected';
+  } else {
+    bar.classList.add('hidden');
+    bar.classList.remove('flex');
+  }
+  // Update select-all checkbox state
+  const all = document.querySelectorAll('.row-check');
+  const selectAll = document.getElementById('selectAll');
+  if (selectAll) selectAll.checked = all.length > 0 && ids.length === all.length;
+}
+function toggleSelectAll(checked) {
+  document.querySelectorAll('.row-check').forEach(cb => { cb.checked = checked; });
+  updateSelection();
+}
+function clearSelection() {
+  toggleSelectAll(false);
+}
+async function batchAction(action) {
+  const ids = getSelectedIds();
+  if (!ids.length) return;
+  if (action === 'delete' && !confirm(t('confirm_delete') + ` (${ids.length})`)) return;
+  for (const id of ids) {
+    if (action === 'delete') {
+      await fetch('/api/conversations/' + encodeURIComponent(id), { method: 'DELETE' });
+    } else if (action === 'reprocess') {
+      await fetch('/api/conversations/' + encodeURIComponent(id) + '/reprocess', { method: 'POST' });
+    }
+  }
+  clearSelection();
+  loadStats();
+  loadConversations();
+}
 
 // ── Detail Modal ──
 async function showDetail(id) {
