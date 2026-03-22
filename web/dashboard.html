@@ -9,103 +9,76 @@
 <script>
 tailwind.config = {
   darkMode: 'class',
-  theme: {
-    extend: {
-      fontFamily: {
-        mono: ['JetBrains Mono', 'Fira Code', 'SF Mono', 'Menlo', 'Consolas', 'monospace'],
-      }
-    }
-  }
+  theme: { extend: { fontFamily: { mono: ['JetBrains Mono','Fira Code','SF Mono','Menlo','Consolas','monospace'] } } }
 }
 </script>
 <style>
-/* Minimal custom CSS — only what Tailwind can't do inline */
-.tab-panel { display: none; }
-.tab-panel.active { display: block; }
-.modal-overlay { display: none; }
-.modal-overlay.open { display: flex; }
-/* Scrollbar styling */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+.tab-panel{display:none}.tab-panel.active{display:block}
+.modal-overlay{display:none}.modal-overlay.open{display:flex}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:#64748b;border-radius:3px}
 </style>
 </head>
-<body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 min-h-screen antialiased transition-colors">
+<body class="bg-gray-50 dark:bg-slate-950 text-gray-900 dark:text-slate-100 min-h-screen antialiased transition-colors duration-200">
 
 <div class="max-w-6xl mx-auto px-5 py-6">
   <!-- Header -->
   <header class="flex items-center gap-3 mb-6">
     <h1 class="text-xl font-semibold tracking-tight">AIChatLog</h1>
-    <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 uppercase tracking-wider">Server</span>
+    <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 uppercase tracking-wider">Server</span>
     <div class="flex-1"></div>
     <div class="flex gap-1" id="langSwitch">
-      <button type="button" onclick="setLang('en')" class="lang-btn px-2.5 py-1 text-xs rounded border border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:border-slate-400 dark:hover:border-slate-500 transition-colors">EN</button>
-      <button type="button" onclick="setLang('zh-CN')" class="lang-btn px-2.5 py-1 text-xs rounded border border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:border-slate-400 dark:hover:border-slate-500 transition-colors">中文</button>
-      <button type="button" onclick="setLang('zh-TW')" class="lang-btn px-2.5 py-1 text-xs rounded border border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:border-slate-400 dark:hover:border-slate-500 transition-colors">繁中</button>
+      <button type="button" onclick="setLang('en')" class="lang-btn px-2.5 py-1 text-xs rounded border border-gray-300 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 hover:border-gray-400 dark:hover:border-slate-500 transition-colors">EN</button>
+      <button type="button" onclick="setLang('zh-CN')" class="lang-btn px-2.5 py-1 text-xs rounded border border-gray-300 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 hover:border-gray-400 dark:hover:border-slate-500 transition-colors">中文</button>
+      <button type="button" onclick="setLang('zh-TW')" class="lang-btn px-2.5 py-1 text-xs rounded border border-gray-300 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 hover:border-gray-400 dark:hover:border-slate-500 transition-colors">繁中</button>
     </div>
     <div class="flex gap-1" id="themeSwitch">
-      <button type="button" onclick="setTheme('auto')" class="theme-btn p-1.5 rounded border border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:border-slate-400 dark:hover:border-slate-500 transition-colors" title="Auto">
-        <i data-lucide="monitor" class="w-3.5 h-3.5"></i>
-      </button>
-      <button type="button" onclick="setTheme('light')" class="theme-btn p-1.5 rounded border border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:border-slate-400 dark:hover:border-slate-500 transition-colors" title="Light">
-        <i data-lucide="sun" class="w-3.5 h-3.5"></i>
-      </button>
-      <button type="button" onclick="setTheme('dark')" class="theme-btn p-1.5 rounded border border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:border-slate-400 dark:hover:border-slate-500 transition-colors" title="Dark">
-        <i data-lucide="moon" class="w-3.5 h-3.5"></i>
-      </button>
+      <button type="button" onclick="setTheme('auto')" class="theme-btn p-1.5 rounded border border-gray-300 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition-colors" title="Auto"><i data-lucide="monitor" class="w-3.5 h-3.5"></i></button>
+      <button type="button" onclick="setTheme('light')" class="theme-btn p-1.5 rounded border border-gray-300 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition-colors" title="Light"><i data-lucide="sun" class="w-3.5 h-3.5"></i></button>
+      <button type="button" onclick="setTheme('dark')" class="theme-btn p-1.5 rounded border border-gray-300 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition-colors" title="Dark"><i data-lucide="moon" class="w-3.5 h-3.5"></i></button>
     </div>
   </header>
 
   <!-- Tabs -->
-  <nav class="flex gap-1 mb-6 border-b border-slate-200 dark:border-slate-800 pb-2">
-    <button type="button" class="tab-btn flex items-center gap-2 px-4 py-2 text-sm rounded-t-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors" onclick="switchTab('conversations')" data-i18n="conversations">
-      <i data-lucide="message-square" class="w-4 h-4"></i> Conversations
-    </button>
-    <button type="button" class="tab-btn flex items-center gap-2 px-4 py-2 text-sm rounded-t-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors" onclick="switchTab('knowledge')" data-i18n="knowledge">
-      <i data-lucide="brain" class="w-4 h-4"></i> Knowledge
-    </button>
-    <button type="button" class="tab-btn flex items-center gap-2 px-4 py-2 text-sm rounded-t-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors" onclick="switchTab('timeline')" data-i18n="timeline">
-      <i data-lucide="clock" class="w-4 h-4"></i> Timeline
-    </button>
-    <button type="button" class="tab-btn flex items-center gap-2 px-4 py-2 text-sm rounded-t-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors" onclick="switchTab('settings')" data-i18n="settings">
-      <i data-lucide="settings" class="w-4 h-4"></i> Settings
-    </button>
+  <nav class="flex gap-1 mb-6 border-b border-gray-200 dark:border-slate-800 pb-2">
+    <button type="button" class="tab-btn flex items-center gap-2 px-4 py-2 text-sm rounded-t-lg text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800/50 transition-colors" onclick="switchTab('conversations')" data-i18n="conversations">
+      <i data-lucide="message-square" class="w-4 h-4"></i> Conversations</button>
+    <button type="button" class="tab-btn flex items-center gap-2 px-4 py-2 text-sm rounded-t-lg text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800/50 transition-colors" onclick="switchTab('knowledge')" data-i18n="knowledge">
+      <i data-lucide="brain" class="w-4 h-4"></i> Knowledge</button>
+    <button type="button" class="tab-btn flex items-center gap-2 px-4 py-2 text-sm rounded-t-lg text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800/50 transition-colors" onclick="switchTab('timeline')" data-i18n="timeline">
+      <i data-lucide="clock" class="w-4 h-4"></i> Timeline</button>
+    <button type="button" class="tab-btn flex items-center gap-2 px-4 py-2 text-sm rounded-t-lg text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800/50 transition-colors" onclick="switchTab('settings')" data-i18n="settings">
+      <i data-lucide="settings" class="w-4 h-4"></i> Settings</button>
   </nav>
 
   <!-- Conversations Tab -->
   <div id="tab-conversations" class="tab-panel active">
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5" id="statsRow"></div>
-
     <div class="flex gap-3 mb-4 items-center">
       <div class="flex-1 relative">
-        <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"></i>
+        <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500"></i>
         <input type="text" id="searchInput" data-i18n-placeholder="search" placeholder="Search conversations..."
-          class="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-200 text-sm placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
-          oninput="onSearch()">
+          class="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg text-gray-900 dark:text-slate-200 text-sm placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors" oninput="onSearch()">
       </div>
       <div class="flex gap-1" id="filterTabs">
-        <button class="filter-tab px-3 py-1.5 text-xs rounded-lg border border-slate-700 text-slate-400 hover:text-slate-200 transition-colors" data-filter="" onclick="setFilter(this, '')" data-i18n="all">All</button>
-        <button class="filter-tab px-3 py-1.5 text-xs rounded-lg border border-slate-700 text-slate-400 hover:text-slate-200 transition-colors" data-filter="received" onclick="setFilter(this, 'received')" data-i18n="received">Received</button>
-        <button class="filter-tab px-3 py-1.5 text-xs rounded-lg border border-slate-700 text-slate-400 hover:text-slate-200 transition-colors" data-filter="synced" onclick="setFilter(this, 'synced')" data-i18n="synced">Synced</button>
-        <button class="filter-tab px-3 py-1.5 text-xs rounded-lg border border-slate-700 text-slate-400 hover:text-slate-200 transition-colors" data-filter="ignored" onclick="setFilter(this, 'ignored')" data-i18n="ignored">Ignored</button>
+        <button class="filter-tab px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition-colors" data-filter="" onclick="setFilter(this, '')" data-i18n="all">All</button>
+        <button class="filter-tab px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition-colors" data-filter="received" onclick="setFilter(this, 'received')" data-i18n="received">Received</button>
+        <button class="filter-tab px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition-colors" data-filter="synced" onclick="setFilter(this, 'synced')" data-i18n="synced">Synced</button>
+        <button class="filter-tab px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition-colors" data-filter="ignored" onclick="setFilter(this, 'ignored')" data-i18n="ignored">Ignored</button>
       </div>
     </div>
-
-    <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+    <div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 overflow-hidden">
       <table class="w-full">
-        <thead>
-          <tr class="border-b border-slate-800">
-            <th class="text-left text-xs font-medium text-slate-500 px-4 py-3 cursor-pointer hover:text-slate-300" onclick="setSort('started_at')" data-i18n="date">Date</th>
-            <th class="text-left text-xs font-medium text-slate-500 px-4 py-3 cursor-pointer hover:text-slate-300" onclick="setSort('title')" data-i18n="title">Title</th>
-            <th class="text-left text-xs font-medium text-slate-500 px-4 py-3 cursor-pointer hover:text-slate-300" onclick="setSort('project')" data-i18n="project">Project</th>
-            <th class="text-left text-xs font-medium text-slate-500 px-4 py-3" data-i18n="source">Source</th>
-            <th class="text-left text-xs font-medium text-slate-500 px-4 py-3" data-i18n="model">Model</th>
-            <th class="text-center text-xs font-medium text-slate-500 px-4 py-3 cursor-pointer hover:text-slate-300" onclick="setSort('message_count')" data-i18n="msgs">Msgs</th>
-            <th class="text-center text-xs font-medium text-slate-500 px-4 py-3 cursor-pointer hover:text-slate-300" onclick="setSort('word_count')" data-i18n="words">Words</th>
-            <th class="text-center text-xs font-medium text-slate-500 px-4 py-3" data-i18n="tokens">Tokens</th>
-            <th class="text-left text-xs font-medium text-slate-500 px-4 py-3" data-i18n="status">Status</th>
-          </tr>
-        </thead>
+        <thead><tr class="border-b border-gray-200 dark:border-slate-800">
+          <th class="text-left text-xs font-medium text-gray-400 dark:text-slate-500 px-4 py-3 cursor-pointer hover:text-gray-600 dark:hover:text-slate-300" onclick="setSort('started_at')" data-i18n="date">Date</th>
+          <th class="text-left text-xs font-medium text-gray-400 dark:text-slate-500 px-4 py-3 cursor-pointer hover:text-gray-600 dark:hover:text-slate-300" onclick="setSort('title')" data-i18n="title">Title</th>
+          <th class="text-left text-xs font-medium text-gray-400 dark:text-slate-500 px-4 py-3 cursor-pointer hover:text-gray-600 dark:hover:text-slate-300" onclick="setSort('project')" data-i18n="project">Project</th>
+          <th class="text-left text-xs font-medium text-gray-400 dark:text-slate-500 px-4 py-3" data-i18n="source">Source</th>
+          <th class="text-left text-xs font-medium text-gray-400 dark:text-slate-500 px-4 py-3" data-i18n="model">Model</th>
+          <th class="text-center text-xs font-medium text-gray-400 dark:text-slate-500 px-4 py-3 cursor-pointer hover:text-gray-600 dark:hover:text-slate-300" onclick="setSort('message_count')" data-i18n="msgs">Msgs</th>
+          <th class="text-center text-xs font-medium text-gray-400 dark:text-slate-500 px-4 py-3 cursor-pointer hover:text-gray-600 dark:hover:text-slate-300" onclick="setSort('word_count')" data-i18n="words">Words</th>
+          <th class="text-center text-xs font-medium text-gray-400 dark:text-slate-500 px-4 py-3" data-i18n="tokens">Tokens</th>
+          <th class="text-left text-xs font-medium text-gray-400 dark:text-slate-500 px-4 py-3" data-i18n="status">Status</th>
+        </tr></thead>
         <tbody id="tbody"></tbody>
       </table>
     </div>
@@ -115,34 +88,26 @@ tailwind.config = {
   <!-- Knowledge Tab -->
   <div id="tab-knowledge" class="tab-panel">
     <div class="flex gap-1 mb-4">
-      <button type="button" class="filter-tab px-3 py-1.5 text-xs rounded-lg border border-slate-700 text-slate-400 hover:text-slate-200 transition-colors" data-ktype="" onclick="setKnowledgeType(this,'')" data-i18n="all">All</button>
-      <button type="button" class="filter-tab px-3 py-1.5 text-xs rounded-lg border border-slate-700 text-slate-400 hover:text-slate-200 transition-colors" data-ktype="tech_solution" onclick="setKnowledgeType(this,'tech_solution')" data-i18n="tech_solutions">Tech Solutions</button>
-      <button type="button" class="filter-tab px-3 py-1.5 text-xs rounded-lg border border-slate-700 text-slate-400 hover:text-slate-200 transition-colors" data-ktype="concept" onclick="setKnowledgeType(this,'concept')" data-i18n="concepts">Concepts</button>
-      <button type="button" class="filter-tab px-3 py-1.5 text-xs rounded-lg border border-slate-700 text-slate-400 hover:text-slate-200 transition-colors" data-ktype="prompt" onclick="setKnowledgeType(this,'prompt')" data-i18n="prompts">Prompts</button>
-      <button type="button" class="filter-tab px-3 py-1.5 text-xs rounded-lg border border-slate-700 text-slate-400 hover:text-slate-200 transition-colors" data-ktype="work_log" onclick="setKnowledgeType(this,'work_log')" data-i18n="work_log">Work Log</button>
+      <button type="button" class="filter-tab px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition-colors" data-ktype="" onclick="setKnowledgeType(this,'')" data-i18n="all">All</button>
+      <button type="button" class="filter-tab px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition-colors" data-ktype="tech_solution" onclick="setKnowledgeType(this,'tech_solution')" data-i18n="tech_solutions">Tech Solutions</button>
+      <button type="button" class="filter-tab px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition-colors" data-ktype="concept" onclick="setKnowledgeType(this,'concept')" data-i18n="concepts">Concepts</button>
+      <button type="button" class="filter-tab px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition-colors" data-ktype="prompt" onclick="setKnowledgeType(this,'prompt')" data-i18n="prompts">Prompts</button>
+      <button type="button" class="filter-tab px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition-colors" data-ktype="work_log" onclick="setKnowledgeType(this,'work_log')" data-i18n="work_log">Work Log</button>
     </div>
     <div id="knowledgeList"></div>
   </div>
-
-  <!-- Timeline Tab -->
-  <div id="tab-timeline" class="tab-panel">
-    <div id="timelineList"></div>
-  </div>
-
-  <!-- Settings Tab -->
-  <div id="tab-settings" class="tab-panel">
-    <div id="settingsContent"></div>
-  </div>
+  <div id="tab-timeline" class="tab-panel"><div id="timelineList"></div></div>
+  <div id="tab-settings" class="tab-panel"><div id="settingsContent"></div></div>
 </div>
 
 <!-- Modal -->
-<div class="modal-overlay fixed inset-0 bg-black/60 z-50 justify-center items-start pt-10 px-5 overflow-y-auto" id="modal" onclick="if(event.target===this)closeModal()">
-  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-3xl w-full max-h-[calc(100vh-80px)] overflow-y-auto shadow-2xl">
-    <div class="flex justify-between items-center px-6 py-4 border-b border-slate-800">
+<div class="modal-overlay fixed inset-0 bg-black/50 dark:bg-black/60 z-50 justify-center items-start pt-10 px-5 overflow-y-auto" id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl max-w-3xl w-full max-h-[calc(100vh-80px)] overflow-y-auto shadow-2xl">
+    <div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 dark:border-slate-800">
       <h2 id="modalTitle" class="text-base font-semibold truncate"></h2>
-      <button onclick="closeModal()" class="text-slate-500 hover:text-slate-200 text-xl transition-colors">&times;</button>
+      <button onclick="closeModal()" class="text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-200 text-xl transition-colors">&times;</button>
     </div>
-    <div id="modalMeta" class="flex flex-wrap gap-3 px-6 py-3 text-xs text-slate-400 border-b border-slate-800"></div>
+    <div id="modalMeta" class="flex flex-wrap gap-2 px-6 py-3 text-xs text-gray-500 dark:text-slate-400 border-b border-gray-200 dark:border-slate-800"></div>
     <div id="modalMessages" class="flex flex-col gap-4 px-6 py-5"></div>
   </div>
 </div>
@@ -151,158 +116,146 @@ tailwind.config = {
 // ── i18n ──
 const STRINGS = {
   en: {
-    conversations: 'Conversations', knowledge: 'Knowledge', timeline: 'Timeline', settings: 'Settings',
-    search: 'Search conversations...', all: 'All', received: 'Received', synced: 'Synced', ignored: 'Ignored',
-    date: 'Date', title: 'Title', project: 'Project', source: 'Source', model: 'Model',
-    msgs: 'Msgs', words: 'Words', tokens: 'Tokens', status: 'Status',
-    total: 'Total', prev: 'Prev', next: 'Next', page: 'Page',
-    no_conversations: 'No conversations found',
-    tech_solutions: 'Tech Solutions', concepts: 'Concepts', prompts: 'Prompts', work_log: 'Work Log',
-    no_extractions: 'No extractions yet. Configure LLM in settings to enable knowledge extraction.',
-    no_work_log: 'No work log entries. LLM extraction creates these automatically.',
-    delete: 'Delete', reprocess: 'Reprocess', extract: 'Extract Knowledge',
-    confirm_delete: 'Delete this conversation?',
-    extracting: 'Extracting...', extracted: 'Extracted!', failed: 'Failed',
-    overview: 'Overview', output_adapter: 'Output Adapter', llm_extraction: 'LLM Extraction',
-    processor: 'Processor', adapter: 'Adapter', path: 'Path', enabled: 'Enabled',
-    interval: 'Interval', batch_size: 'Batch size', sync_dir: 'Sync directory',
-    min_words: 'Min words', conversations_count: 'Conversations', projects: 'Projects',
-    extractions: 'Extractions', total_words: 'Total words',
-    total_tokens_in: 'Total tokens (in)', total_tokens_out: 'Total tokens (out)',
-    tokens_in_out: 'Tokens: %d in / %d out', msgs_words: '%d msgs / %d words',
+    conversations:'Conversations', knowledge:'Knowledge', timeline:'Timeline', settings:'Settings',
+    search:'Search conversations...', all:'All', received:'Received', synced:'Synced', ignored:'Ignored',
+    date:'Date', title:'Title', project:'Project', source:'Source', model:'Model',
+    msgs:'Msgs', words:'Words', tokens:'Tokens', status:'Status',
+    total:'Total', prev:'Prev', next:'Next', page:'Page',
+    no_conversations:'No conversations found',
+    tech_solutions:'Tech Solutions', concepts:'Concepts', prompts:'Prompts', work_log:'Work Log',
+    no_extractions:'No extractions yet. Configure LLM in settings to enable knowledge extraction.',
+    no_work_log:'No work log entries. LLM extraction creates these automatically.',
+    delete:'Delete', reprocess:'Reprocess', extract:'Extract Knowledge',
+    confirm_delete:'Delete this conversation?',
+    extracting:'Extracting...', extracted:'Extracted!', failed:'Failed',
+    overview:'Overview', output_adapter:'Output Adapter', llm_extraction:'LLM Extraction',
+    processor:'Processor', adapter:'Adapter', path:'Path', enabled:'Enabled',
+    interval:'Interval', batch_size:'Batch size', sync_dir:'Sync directory',
+    min_words:'Min words', conversations_count:'Conversations', projects:'Projects',
+    extractions:'Extractions', total_words:'Total words',
+    total_tokens_in:'Total tokens (in)', total_tokens_out:'Total tokens (out)',
+    tokens_in_out:'Tokens: %d in / %d out', msgs_words:'%d msgs / %d words',
   },
   'zh-CN': {
-    conversations: '对话', knowledge: '知识库', timeline: '时间线', settings: '设置',
-    search: '搜索对话...', all: '全部', received: '已接收', synced: '已同步', ignored: '已忽略',
-    date: '日期', title: '标题', project: '项目', source: '来源', model: '模型',
-    msgs: '消息', words: '字数', tokens: 'Token', status: '状态',
-    total: '总计', prev: '上一页', next: '下一页', page: '第',
-    no_conversations: '没有找到对话',
-    tech_solutions: '技术方案', concepts: '概念', prompts: '提示词', work_log: '工作日志',
-    no_extractions: '暂无知识提取。请在设置中配置 LLM 以启用。',
-    no_work_log: '暂无工作日志。LLM 提取会自动生成。',
-    delete: '删除', reprocess: '重新处理', extract: '提取知识',
-    confirm_delete: '确定要删除这条对话吗？',
-    extracting: '提取中...', extracted: '提取完成！', failed: '失败',
-    overview: '概览', output_adapter: '输出适配器', llm_extraction: 'LLM 提取',
-    processor: '处理器', adapter: '适配器', path: '路径', enabled: '启用',
-    interval: '间隔', batch_size: '批量大小', sync_dir: '同步目录',
-    min_words: '最少字数', conversations_count: '对话数', projects: '项目数',
-    extractions: '提取数', total_words: '总字数',
-    total_tokens_in: '总输入 Token', total_tokens_out: '总输出 Token',
-    tokens_in_out: 'Token: %d 输入 / %d 输出', msgs_words: '%d 条消息 / %d 字',
+    conversations:'对话', knowledge:'知识库', timeline:'时间线', settings:'设置',
+    search:'搜索对话...', all:'全部', received:'已接收', synced:'已同步', ignored:'已忽略',
+    date:'日期', title:'标题', project:'项目', source:'来源', model:'模型',
+    msgs:'消息', words:'字数', tokens:'Token', status:'状态',
+    total:'总计', prev:'上一页', next:'下一页', page:'第',
+    no_conversations:'没有找到对话',
+    tech_solutions:'技术方案', concepts:'概念', prompts:'提示词', work_log:'工作日志',
+    no_extractions:'暂无知识提取。请在设置中配置 LLM 以启用。',
+    no_work_log:'暂无工作日志。LLM 提取会自动生成。',
+    delete:'删除', reprocess:'重新处理', extract:'提取知识',
+    confirm_delete:'确定要删除这条对话吗？',
+    extracting:'提取中...', extracted:'提取完成！', failed:'失败',
+    overview:'概览', output_adapter:'输出适配器', llm_extraction:'LLM 提取',
+    processor:'处理器', adapter:'适配器', path:'路径', enabled:'启用',
+    interval:'间隔', batch_size:'批量大小', sync_dir:'同步目录',
+    min_words:'最少字数', conversations_count:'对话数', projects:'项目数',
+    extractions:'提取数', total_words:'总字数',
+    total_tokens_in:'总输入 Token', total_tokens_out:'总输出 Token',
+    tokens_in_out:'Token: %d 输入 / %d 输出', msgs_words:'%d 条消息 / %d 字',
   },
   'zh-TW': {
-    conversations: '對話', knowledge: '知識庫', timeline: '時間線', settings: '設定',
-    search: '搜尋對話...', all: '全部', received: '已接收', synced: '已同步', ignored: '已忽略',
-    date: '日期', title: '標題', project: '專案', source: '來源', model: '模型',
-    msgs: '訊息', words: '字數', tokens: 'Token', status: '狀態',
-    total: '總計', prev: '上一頁', next: '下一頁', page: '第',
-    no_conversations: '沒有找到對話',
-    tech_solutions: '技術方案', concepts: '概念', prompts: '提示詞', work_log: '工作日誌',
-    no_extractions: '暫無知識擷取。請在設定中配置 LLM 以啟用。',
-    no_work_log: '暫無工作日誌。LLM 擷取會自動生成。',
-    delete: '刪除', reprocess: '重新處理', extract: '擷取知識',
-    confirm_delete: '確定要刪除這條對話嗎？',
-    extracting: '擷取中...', extracted: '擷取完成！', failed: '失敗',
-    overview: '概覽', output_adapter: '輸出適配器', llm_extraction: 'LLM 擷取',
-    processor: '處理器', adapter: '適配器', path: '路徑', enabled: '啟用',
-    interval: '間隔', batch_size: '批次大小', sync_dir: '同步目錄',
-    min_words: '最少字數', conversations_count: '對話數', projects: '專案數',
-    extractions: '擷取數', total_words: '總字數',
-    total_tokens_in: '總輸入 Token', total_tokens_out: '總輸出 Token',
-    tokens_in_out: 'Token: %d 輸入 / %d 輸出', msgs_words: '%d 則訊息 / %d 字',
+    conversations:'對話', knowledge:'知識庫', timeline:'時間線', settings:'設定',
+    search:'搜尋對話...', all:'全部', received:'已接收', synced:'已同步', ignored:'已忽略',
+    date:'日期', title:'標題', project:'專案', source:'來源', model:'模型',
+    msgs:'訊息', words:'字數', tokens:'Token', status:'狀態',
+    total:'總計', prev:'上一頁', next:'下一頁', page:'第',
+    no_conversations:'沒有找到對話',
+    tech_solutions:'技術方案', concepts:'概念', prompts:'提示詞', work_log:'工作日誌',
+    no_extractions:'暫無知識擷取。請在設定中配置 LLM 以啟用。',
+    no_work_log:'暫無工作日誌。LLM 擷取會自動生成。',
+    delete:'刪除', reprocess:'重新處理', extract:'擷取知識',
+    confirm_delete:'確定要刪除這條對話嗎？',
+    extracting:'擷取中...', extracted:'擷取完成！', failed:'失敗',
+    overview:'概覽', output_adapter:'輸出適配器', llm_extraction:'LLM 擷取',
+    processor:'處理器', adapter:'適配器', path:'路徑', enabled:'啟用',
+    interval:'間隔', batch_size:'批次大小', sync_dir:'同步目錄',
+    min_words:'最少字數', conversations_count:'對話數', projects:'專案數',
+    extractions:'擷取數', total_words:'總字數',
+    total_tokens_in:'總輸入 Token', total_tokens_out:'總輸出 Token',
+    tokens_in_out:'Token: %d 輸入 / %d 輸出', msgs_words:'%d 則訊息 / %d 字',
   },
 };
 let currentLang = 'en';
-function t(key) { return (STRINGS[currentLang] || STRINGS.en)[key] || STRINGS.en[key] || key; }
-function tf(key, ...args) { let s = t(key); args.forEach(a => s = s.replace('%d', a)); return s; }
+function t(key) { return (STRINGS[currentLang]||STRINGS.en)[key]||STRINGS.en[key]||key; }
+function tf(key,...args) { let s=t(key); args.forEach(a=>s=s.replace('%d',a)); return s; }
 function applyI18n() {
   document.querySelectorAll('[data-i18n]').forEach(el => {
-    const text = t(el.dataset.i18n);
-    const icon = el.querySelector('i, svg');
-    if (icon) {
-      // Preserve icon, replace only the text part
-      const textNode = Array.from(el.childNodes).find(n => n.nodeType === 3 && n.textContent.trim());
-      if (textNode) { textNode.textContent = ' ' + text; }
-      else { el.appendChild(document.createTextNode(' ' + text)); }
-    } else {
-      el.textContent = text;
-    }
+    const text = t(el.dataset.i18n), icon = el.querySelector('i,svg');
+    if (icon) { const tn = Array.from(el.childNodes).find(n=>n.nodeType===3&&n.textContent.trim()); if(tn) tn.textContent=' '+text; else el.appendChild(document.createTextNode(' '+text)); }
+    else el.textContent = text;
   });
-  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => { el.placeholder = t(el.dataset.i18nPlaceholder); });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el=>{ el.placeholder=t(el.dataset.i18nPlaceholder); });
 }
 async function setLang(lang) {
   currentLang = lang;
-  try {
-    const cfg = await api('/config');
-    cfg.lang = lang;
-    await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cfg) });
-  } catch(e) {}
+  try { const cfg=await api('/config'); cfg.lang=lang; await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)}); } catch(e){}
   applyI18n(); updateLangButtons(); loadStats(); loadConversations();
 }
 function updateLangButtons() {
   document.querySelectorAll('.lang-btn').forEach(b => {
-    const l = b.textContent.trim() === 'EN' ? 'en' : b.textContent.trim() === '中文' ? 'zh-CN' : 'zh-TW';
-    b.classList.toggle('!border-blue-500', l === currentLang);
-    b.classList.toggle('!text-blue-400', l === currentLang);
+    const l = b.textContent.trim()==='EN'?'en':b.textContent.trim()==='中文'?'zh-CN':'zh-TW';
+    b.classList.toggle('!border-blue-500',l===currentLang); b.classList.toggle('!text-blue-500',l===currentLang);
   });
 }
+
+// ── Theme ──
 let currentTheme = 'auto';
-function setTheme(mode) {
-  currentTheme = mode;
-  localStorage.setItem('aichatlog-theme', mode);
-  applyTheme();
-  updateThemeButtons();
-}
+function setTheme(mode) { currentTheme=mode; localStorage.setItem('aichatlog-theme',mode); applyTheme(); updateThemeButtons(); }
 function applyTheme() {
-  const isDark = currentTheme === 'dark' || (currentTheme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  document.documentElement.classList.toggle('dark', isDark);
+  const isDark = currentTheme==='dark'||(currentTheme==='auto'&&window.matchMedia('(prefers-color-scheme:dark)').matches);
+  document.documentElement.classList.toggle('dark',isDark);
 }
 function updateThemeButtons() {
-  const modes = ['auto', 'light', 'dark'];
-  document.querySelectorAll('.theme-btn').forEach((b, i) => {
-    const active = modes[i] === currentTheme;
-    b.classList.toggle('!border-blue-500', active);
-    b.classList.toggle('!text-blue-400', active);
+  ['auto','light','dark'].forEach((m,i) => {
+    const b=document.querySelectorAll('.theme-btn')[i];
+    if(b){b.classList.toggle('!border-blue-500',m===currentTheme);b.classList.toggle('!text-blue-500',m===currentTheme);}
   });
 }
-// Listen for system theme changes (for auto mode)
-window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-  if (currentTheme === 'auto') applyTheme();
-});
+window.matchMedia('(prefers-color-scheme:dark)').addEventListener('change',()=>{ if(currentTheme==='auto') applyTheme(); });
 
-// ── State ──
+// ── Helpers ──
 const PAGE_SIZE = 50;
-let state = { filter: '', query: '', sort: 'started_at', order: 'desc', offset: 0 };
+let state = {filter:'',query:'',sort:'started_at',order:'desc',offset:0};
 let searchTimer = null;
+async function api(path) { return (await fetch('/api'+path)).json(); }
+function esc(s) { if(!s)return''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 
-async function api(path) { return (await fetch('/api' + path)).json(); }
-
-function el(tag, cls, children) {
-  const e = document.createElement(tag);
-  if (cls) e.className = cls;
-  if (typeof children === 'string') e.textContent = children;
-  else if (Array.isArray(children)) children.forEach(c => { if (c) e.appendChild(c); });
-  return e;
-}
+// ── Color helpers for JS-generated elements ──
+const C = {
+  card: 'bg-white dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700/50',
+  cardHover: 'hover:border-gray-300 dark:hover:border-slate-600',
+  row: 'border-b border-gray-100 dark:border-slate-800/50 hover:bg-gray-50 dark:hover:bg-slate-800/30 cursor-pointer transition-colors',
+  text1: 'text-gray-900 dark:text-slate-200',
+  text2: 'text-gray-500 dark:text-slate-400',
+  text3: 'text-gray-400 dark:text-slate-500',
+  text4: 'text-gray-300 dark:text-slate-600',
+  chip: 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400',
+  btn: 'border border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition-colors',
+  empty: 'text-center py-16 text-gray-400 dark:text-slate-500',
+  section: 'bg-gray-50 dark:bg-slate-800/30 border border-gray-200 dark:border-slate-800 rounded-xl p-5 mb-4',
+  code: 'bg-gray-900 dark:bg-slate-950 text-gray-300 dark:text-slate-300 border border-gray-800 dark:border-slate-800',
+};
+const statusColor = s => ({received:'amber',synced:'emerald',failed:'red',ignored:'slate'}[s]||'slate');
 
 // ── Stats ──
 async function loadStats() {
   const s = await api('/stats');
   const container = document.getElementById('statsRow');
   container.replaceChildren();
-  const items = [
-    { k: '', label: t('total'), v: s.total, color: 'blue', icon: 'layers' },
-    { k: 'received', label: t('received'), v: s.received, color: 'amber', icon: 'inbox' },
-    { k: 'synced', label: t('synced'), v: s.synced, color: 'emerald', icon: 'check-circle' },
-    { k: 'ignored', label: t('ignored'), v: s.ignored, color: 'slate', icon: 'eye-off' },
-  ];
-  items.forEach(x => {
+  [{k:'',label:t('total'),v:s.total,color:'blue',icon:'layers'},
+   {k:'received',label:t('received'),v:s.received,color:'amber',icon:'inbox'},
+   {k:'synced',label:t('synced'),v:s.synced,color:'emerald',icon:'check-circle'},
+   {k:'ignored',label:t('ignored'),v:s.ignored,color:'slate',icon:'eye-off'}
+  ].forEach(x => {
     const card = document.createElement('div');
-    card.className = `bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 cursor-pointer hover:border-${x.color}-500/50 transition-all ${state.filter === x.k ? 'border-' + x.color + '-500/70 bg-' + x.color + '-500/5' : ''}`;
+    const active = state.filter===x.k;
+    card.className = `${C.card} rounded-xl p-4 cursor-pointer ${C.cardHover} transition-all ${active?'!border-'+x.color+'-500/70':''}`;
     card.onclick = () => setFilter(null, x.k);
-    card.innerHTML = `<div class="flex items-center gap-2 mb-1"><i data-lucide="${x.icon}" class="w-3.5 h-3.5 text-${x.color}-400"></i><span class="text-xs text-slate-400">${x.label}</span></div><div class="text-2xl font-bold font-mono text-${x.color}-400">${x.v}</div>`;
+    card.innerHTML = `<div class="flex items-center gap-2 mb-1"><i data-lucide="${x.icon}" class="w-3.5 h-3.5 text-${x.color}-500"></i><span class="text-xs ${C.text2}">${x.label}</span></div><div class="text-2xl font-bold font-mono text-${x.color}-500">${x.v}</div>`;
     container.appendChild(card);
   });
   lucide.createIcons();
@@ -311,344 +264,168 @@ async function loadStats() {
 // ── Conversations ──
 async function loadConversations() {
   const params = new URLSearchParams();
-  if (state.filter) params.set('status', state.filter);
-  if (state.query) params.set('q', state.query);
-  params.set('sort', state.sort); params.set('order', state.order);
-  params.set('limit', PAGE_SIZE); params.set('offset', state.offset);
-
-  const rows = await api('/conversations?' + params);
+  if(state.filter)params.set('status',state.filter); if(state.query)params.set('q',state.query);
+  params.set('sort',state.sort); params.set('order',state.order); params.set('limit',PAGE_SIZE); params.set('offset',state.offset);
+  const rows = await api('/conversations?'+params);
   const tbody = document.getElementById('tbody');
   tbody.replaceChildren();
-
-  if (!rows.length) {
-    const tr = document.createElement('tr');
-    const td = document.createElement('td');
-    td.colSpan = 9;
-    td.className = 'text-center py-16 text-slate-500';
-    td.textContent = t('no_conversations');
-    tr.appendChild(td);
-    tbody.appendChild(tr);
-    document.getElementById('pagination').replaceChildren();
-    return;
+  if(!rows.length) {
+    const tr=document.createElement('tr'),td=document.createElement('td');
+    td.colSpan=9; td.className=C.empty; td.textContent=t('no_conversations');
+    tr.appendChild(td); tbody.appendChild(tr);
+    document.getElementById('pagination').replaceChildren(); return;
   }
-
-  const statusColors = { received: 'amber', synced: 'emerald', failed: 'red', ignored: 'slate' };
-
   rows.forEach(c => {
     const tr = document.createElement('tr');
-    tr.className = 'border-b border-slate-800/50 hover:bg-slate-800/30 cursor-pointer transition-colors';
+    tr.className = C.row;
     tr.onclick = () => showDetail(c.id);
-
-    const modelShort = (c.model || '').replace('claude-', '').replace(/-2025\d+/, '');
-    const tokStr = (c.total_input_tokens || c.total_output_tokens)
-      ? (c.total_input_tokens/1000).toFixed(1) + 'k/' + (c.total_output_tokens/1000).toFixed(1) + 'k' : '';
-    const sc = statusColors[c.status] || 'slate';
-
+    const ms = (c.model||'').replace('claude-','').replace(/-2025\d+/,'');
+    const tok = (c.total_input_tokens||c.total_output_tokens) ? (c.total_input_tokens/1000).toFixed(1)+'k/'+(c.total_output_tokens/1000).toFixed(1)+'k' : '';
+    const sc = statusColor(c.status);
     tr.innerHTML = `
-      <td class="px-4 py-3 text-xs font-mono text-slate-400 whitespace-nowrap">${(c.started_at||'').slice(0,10)}</td>
-      <td class="px-4 py-3 text-sm text-slate-200 max-w-[300px] truncate">${esc(c.title)}${c.has_code ? ' <span class="text-blue-400 text-[10px]">&lt;/&gt;</span>' : ''}</td>
-      <td class="px-4 py-3 text-sm text-slate-400">${esc(c.project) || '—'}</td>
-      <td class="px-4 py-3"><span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400">${esc(c.source_type)}</span></td>
-      <td class="px-4 py-3 text-[11px] font-mono text-slate-500">${modelShort || '—'}</td>
-      <td class="px-4 py-3 text-xs font-mono text-slate-400 text-center">${c.message_count}</td>
-      <td class="px-4 py-3 text-xs font-mono text-slate-400 text-center">${c.word_count}</td>
-      <td class="px-4 py-3 text-[10px] font-mono text-slate-500 text-center">${tokStr || '—'}</td>
-      <td class="px-4 py-3"><span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-${sc}-500/10 text-${sc}-400">${c.status}</span></td>
-    `;
+      <td class="px-4 py-3 text-xs font-mono ${C.text2} whitespace-nowrap">${(c.started_at||'').slice(0,10)}</td>
+      <td class="px-4 py-3 text-sm ${C.text1} max-w-[300px] truncate">${esc(c.title)}${c.has_code?' <span class="text-blue-500 text-[10px]">&lt;/&gt;</span>':''}</td>
+      <td class="px-4 py-3 text-sm ${C.text2}">${esc(c.project)||'—'}</td>
+      <td class="px-4 py-3"><span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400">${esc(c.source_type)}</span></td>
+      <td class="px-4 py-3 text-[11px] font-mono ${C.text3}">${ms||'—'}</td>
+      <td class="px-4 py-3 text-xs font-mono ${C.text2} text-center">${c.message_count}</td>
+      <td class="px-4 py-3 text-xs font-mono ${C.text2} text-center">${c.word_count}</td>
+      <td class="px-4 py-3 text-[10px] font-mono ${C.text3} text-center">${tok||'—'}</td>
+      <td class="px-4 py-3"><span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-${sc}-50 dark:bg-${sc}-500/10 text-${sc}-600 dark:text-${sc}-400">${c.status}</span></td>`;
     tbody.appendChild(tr);
   });
-
-  // Pagination
-  const pag = document.getElementById('pagination');
-  pag.replaceChildren();
-  const page = Math.floor(state.offset / PAGE_SIZE);
-  const hasNext = rows.length === PAGE_SIZE;
-  const mkBtn = (text, disabled, fn) => {
-    const b = document.createElement('button');
-    b.className = 'px-3 py-1.5 text-xs rounded-lg border border-slate-700 text-slate-400 hover:text-slate-200 transition-colors disabled:opacity-30 disabled:cursor-default';
-    b.textContent = text; b.disabled = disabled; if (fn) b.onclick = fn;
-    return b;
-  };
-  pag.append(mkBtn(t('prev'), page===0, ()=>goPage(page-1)), mkBtn(t('page')+' '+(page+1), true), mkBtn(t('next'), !hasNext, ()=>goPage(page+1)));
+  const pag=document.getElementById('pagination'); pag.replaceChildren();
+  const page=Math.floor(state.offset/PAGE_SIZE), hasNext=rows.length===PAGE_SIZE;
+  const mkBtn=(text,disabled,fn)=>{const b=document.createElement('button');b.className='px-3 py-1.5 text-xs rounded-lg '+C.btn+' disabled:opacity-30';b.textContent=text;b.disabled=disabled;if(fn)b.onclick=fn;return b;};
+  pag.append(mkBtn(t('prev'),page===0,()=>goPage(page-1)), mkBtn(t('page')+' '+(page+1),true), mkBtn(t('next'),!hasNext,()=>goPage(page+1)));
 }
-
-function setFilter(btn, f) {
-  state.filter = f; state.offset = 0;
-  document.querySelectorAll('.filter-tab').forEach(b => {
-    const active = (b.dataset.filter ?? b.dataset.ktype ?? '') === f;
-    b.classList.toggle('!border-blue-500', active);
-    b.classList.toggle('!text-blue-400', active);
-    b.classList.toggle('!bg-blue-500/10', active);
+function setFilter(btn,f) {
+  state.filter=f; state.offset=0;
+  document.querySelectorAll('.filter-tab').forEach(b=>{
+    const active=(b.dataset.filter??b.dataset.ktype??'')===f;
+    b.classList.toggle('!border-blue-500',active); b.classList.toggle('!text-blue-500',active); b.classList.toggle('!bg-blue-50',active); b.classList.toggle('dark:!bg-blue-500/10',active);
   });
   loadStats(); loadConversations();
 }
-function setSort(col) {
-  if (state.sort === col) state.order = state.order === 'desc' ? 'asc' : 'desc';
-  else { state.sort = col; state.order = 'desc'; }
-  state.offset = 0; loadConversations();
-}
-function onSearch() {
-  clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => { state.query = document.getElementById('searchInput').value.trim(); state.offset = 0; loadConversations(); }, 300);
-}
-function goPage(p) { state.offset = p * PAGE_SIZE; loadConversations(); }
+function setSort(col){if(state.sort===col)state.order=state.order==='desc'?'asc':'desc';else{state.sort=col;state.order='desc';}state.offset=0;loadConversations();}
+function onSearch(){clearTimeout(searchTimer);searchTimer=setTimeout(()=>{state.query=document.getElementById('searchInput').value.trim();state.offset=0;loadConversations();},300);}
+function goPage(p){state.offset=p*PAGE_SIZE;loadConversations();}
 
 // ── Detail Modal ──
 async function showDetail(id) {
-  const c = await api('/conversations/' + encodeURIComponent(id) + '?full=true');
+  const c = await api('/conversations/'+encodeURIComponent(id)+'?full=true');
   document.getElementById('modalTitle').textContent = c.title;
-
   const meta = document.getElementById('modalMeta');
   meta.replaceChildren();
-  const addChip = (text, cls) => { const s = document.createElement('span'); s.className = 'px-2 py-0.5 rounded text-[11px] ' + (cls||'bg-slate-800 text-slate-400'); s.textContent = text; meta.appendChild(s); };
+  const addChip=(text,cls)=>{const s=document.createElement('span');s.className='px-2 py-0.5 rounded text-[11px] '+(cls||C.chip);s.textContent=text;meta.appendChild(s);};
+  const sd=(c.started_at||'').replace('T',' ').slice(0,19), ed=(c.ended_at||'').replace('T',' ').slice(11,19);
+  addChip(ed?sd+' → '+ed:sd);
+  addChip(c.source_type,'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400');
+  if(c.project)addChip('Project: '+c.project);
+  if(c.model)addChip(c.model, C.chip);
+  addChip(tf('msgs_words',c.message_count,c.word_count));
+  if(c.total_input_tokens||c.total_output_tokens)addChip(tf('tokens_in_out',c.total_input_tokens,c.total_output_tokens));
+  const sc=statusColor(c.status); addChip(c.status,`bg-${sc}-50 dark:bg-${sc}-500/10 text-${sc}-600 dark:text-${sc}-400`);
+  if(c.metadata&&c.metadata!=='{}'){try{const md=typeof c.metadata==='string'?JSON.parse(c.metadata):c.metadata;Object.entries(md).forEach(([k,v])=>addChip(k+': '+v,'bg-gray-50 dark:bg-slate-800/50 '+C.text3));}catch(e){}}
 
-  const startDate = (c.started_at || '').replace('T', ' ').slice(0, 19);
-  const endDate = (c.ended_at || '').replace('T', ' ').slice(11, 19);
-  addChip(endDate ? startDate + ' → ' + endDate : startDate);
-  addChip(c.source_type, 'bg-blue-500/10 text-blue-400');
-  if (c.project) addChip('Project: ' + c.project);
-  if (c.model) addChip(c.model, 'bg-slate-800 text-slate-300');
-  addChip(tf('msgs_words', c.message_count, c.word_count));
-  if (c.total_input_tokens || c.total_output_tokens) addChip(tf('tokens_in_out', c.total_input_tokens, c.total_output_tokens));
-  const sc = { received:'amber', synced:'emerald', failed:'red', ignored:'slate' }[c.status] || 'slate';
-  addChip(c.status, `bg-${sc}-500/10 text-${sc}-400`);
-  if (c.metadata && c.metadata !== '{}') {
-    try { const md = typeof c.metadata === 'string' ? JSON.parse(c.metadata) : c.metadata;
-      Object.entries(md).forEach(([k,v]) => addChip(k+': '+v, 'bg-slate-800/50 text-slate-500'));
-    } catch(e) {}
-  }
-
-  // Messages
   const container = document.getElementById('modalMessages');
   container.replaceChildren();
-
-  function renderContent(parent, text) {
-    if (!text) return;
-    const codePattern = /```(\w*)\n([\s\S]*?)```/g;
-    let lastIdx = 0, m2;
-    while ((m2 = codePattern.exec(text)) !== null) {
-      if (m2.index > lastIdx) {
-        const span = document.createElement('span');
-        span.className = 'whitespace-pre-wrap';
-        span.textContent = text.slice(lastIdx, m2.index);
-        parent.appendChild(span);
-      }
-      const lang = m2[1], code = m2[2];
-      if (lang) {
-        const label = document.createElement('span');
-        label.className = 'text-[10px] font-mono text-slate-500 block mt-2';
-        label.textContent = lang;
-        parent.appendChild(label);
-      }
-      const pre = document.createElement('pre');
-      pre.className = 'bg-slate-950 text-slate-300 border border-slate-800 rounded-lg p-3 my-2 overflow-x-auto text-[13px] font-mono leading-relaxed';
-      const codeEl = document.createElement('code');
-      codeEl.textContent = code.trimEnd();
-      pre.appendChild(codeEl);
-      parent.appendChild(pre);
-      lastIdx = m2.index + m2[0].length;
+  function renderContent(parent,text){
+    if(!text)return; const cp=/```(\w*)\n([\s\S]*?)```/g; let li=0,m2;
+    while((m2=cp.exec(text))!==null){
+      if(m2.index>li){const s=document.createElement('span');s.className='whitespace-pre-wrap';s.textContent=text.slice(li,m2.index);parent.appendChild(s);}
+      if(m2[1]){const lb=document.createElement('span');lb.className='text-[10px] font-mono '+C.text3+' block mt-2';lb.textContent=m2[1];parent.appendChild(lb);}
+      const pre=document.createElement('pre');pre.className=C.code+' rounded-lg p-3 my-2 overflow-x-auto text-[13px] font-mono leading-relaxed';
+      const cd=document.createElement('code');cd.textContent=m2[2].trimEnd();pre.appendChild(cd);parent.appendChild(pre);li=m2.index+m2[0].length;
     }
-    if (lastIdx < text.length) {
-      const span = document.createElement('span');
-      span.className = 'whitespace-pre-wrap';
-      span.textContent = text.slice(lastIdx);
-      parent.appendChild(span);
-    }
+    if(li<text.length){const s=document.createElement('span');s.className='whitespace-pre-wrap';s.textContent=text.slice(li);parent.appendChild(s);}
   }
-
-  (c.messages || []).filter(m => !m.is_context).forEach(m => {
-    const isUser = m.role === 'user';
-    const msgDiv = document.createElement('div');
-    msgDiv.className = 'max-w-[85%] flex flex-col ' + (isUser ? 'self-end' : 'self-start');
-
-    // Header
-    const header = document.createElement('div');
-    header.className = 'flex items-center gap-2 mb-1 text-[11px] ' + (isUser ? 'justify-end text-blue-400' : 'text-emerald-400');
-    header.textContent = isUser ? 'User' : 'Assistant';
-    if (m.timestamp) {
-      const ts = document.createElement('span');
-      ts.className = 'text-slate-500';
-      ts.textContent = (m.timestamp || '').replace('T', ' ').slice(11, 19);
-      header.appendChild(ts);
-    }
-    if (!isUser && m.model) {
-      const ms = document.createElement('span');
-      ms.className = 'text-slate-600';
-      ms.textContent = m.model.replace('claude-', '').replace(/-2025\d+/, '');
-      header.appendChild(ms);
-    }
-    msgDiv.appendChild(header);
-
-    // Bubble
-    const bubble = document.createElement('div');
-    bubble.className = isUser
-      ? 'rounded-2xl rounded-br-sm px-4 py-3 bg-blue-500 text-white text-sm leading-relaxed'
-      : 'rounded-2xl rounded-bl-sm px-4 py-3 bg-slate-800 text-slate-200 text-sm leading-relaxed border border-slate-700/50';
-
-    if (isUser) {
-      bubble.textContent = m.content;
-    } else {
-      renderContent(bubble, m.content);
-    }
-    msgDiv.appendChild(bubble);
-
-    // Token meta
-    if (!isUser && (m.input_tokens || m.output_tokens)) {
-      const tok = document.createElement('div');
-      tok.className = 'text-[10px] text-slate-600 mt-1 flex items-center gap-1';
-      tok.innerHTML = `<i data-lucide="coins" class="w-3 h-3"></i> ${(m.input_tokens/1000).toFixed(1)}k in / ${(m.output_tokens/1000).toFixed(1)}k out`;
-      msgDiv.appendChild(tok);
-    }
-    container.appendChild(msgDiv);
+  (c.messages||[]).filter(m=>!m.is_context).forEach(m=>{
+    const isU=m.role==='user';
+    const div=document.createElement('div');
+    div.className='max-w-[85%] flex flex-col '+(isU?'self-end':'self-start');
+    const hd=document.createElement('div');
+    hd.className='flex items-center gap-2 mb-1 text-[11px] '+(isU?'justify-end text-blue-500':'text-emerald-500');
+    hd.textContent=isU?'User':'Assistant';
+    if(m.timestamp){const ts=document.createElement('span');ts.className=C.text3;ts.textContent=(m.timestamp||'').replace('T',' ').slice(11,19);hd.appendChild(ts);}
+    if(!isU&&m.model){const ms2=document.createElement('span');ms2.className=C.text4;ms2.textContent=m.model.replace('claude-','').replace(/-2025\d+/,'');hd.appendChild(ms2);}
+    div.appendChild(hd);
+    const bubble=document.createElement('div');
+    bubble.className=isU
+      ?'rounded-2xl rounded-br-sm px-4 py-3 bg-blue-500 text-white text-sm leading-relaxed'
+      :'rounded-2xl rounded-bl-sm px-4 py-3 bg-gray-100 dark:bg-slate-800 text-gray-900 dark:text-slate-200 text-sm leading-relaxed border border-gray-200 dark:border-slate-700/50';
+    if(isU)bubble.textContent=m.content; else renderContent(bubble,m.content);
+    div.appendChild(bubble);
+    if(!isU&&(m.input_tokens||m.output_tokens)){const tk=document.createElement('div');tk.className='text-[10px] '+C.text4+' mt-1 flex items-center gap-1';tk.innerHTML=`<i data-lucide="coins" class="w-3 h-3"></i> ${(m.input_tokens/1000).toFixed(1)}k in / ${(m.output_tokens/1000).toFixed(1)}k out`;div.appendChild(tk);}
+    container.appendChild(div);
   });
-
-  // Actions
-  const actions = document.createElement('div');
-  actions.className = 'px-6 py-3 border-t border-slate-800 flex gap-2';
-  const mkAction = (text, icon, cls, fn) => {
-    const b = document.createElement('button');
-    b.className = 'flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-colors ' + (cls || 'border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:border-slate-400 dark:hover:border-slate-500');
-    b.innerHTML = `<i data-lucide="${icon}" class="w-3.5 h-3.5"></i> ${text}`;
-    b.onclick = fn;
-    return b;
-  };
+  const actions=document.createElement('div');
+  actions.className='px-6 py-3 border-t border-gray-200 dark:border-slate-800 flex gap-2';
+  const mkAction=(text,icon,cls,fn)=>{const b=document.createElement('button');b.className='flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-colors '+(cls||C.btn);b.innerHTML=`<i data-lucide="${icon}" class="w-3.5 h-3.5"></i> ${text}`;b.onclick=fn;return b;};
   actions.append(
-    mkAction(t('delete'), 'trash-2', 'border-red-500/30 text-red-400 hover:bg-red-500/10', async () => {
-      if (!confirm(t('confirm_delete'))) return;
-      await fetch('/api/conversations/' + encodeURIComponent(c.id), { method: 'DELETE' });
-      closeModal(); loadStats(); loadConversations();
-    }),
-    mkAction(t('reprocess'), 'refresh-cw', '', async () => {
-      await fetch('/api/conversations/' + encodeURIComponent(c.id) + '/reprocess', { method: 'POST' });
-      closeModal(); loadStats(); loadConversations();
-    }),
-    mkAction(t('extract'), 'brain', '', async function() {
-      this.querySelector('span,i').nextSibling.textContent = ' ' + t('extracting');
-      const r = await fetch('/api/conversations/' + encodeURIComponent(c.id) + '/extract', { method: 'POST' });
-      const res = await r.json();
-      this.querySelector('span,i').nextSibling.textContent = ' ' + (res.ok ? t('extracted') : t('failed'));
-    }),
+    mkAction(t('delete'),'trash-2','border-red-200 dark:border-red-500/30 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10',async()=>{if(!confirm(t('confirm_delete')))return;await fetch('/api/conversations/'+encodeURIComponent(c.id),{method:'DELETE'});closeModal();loadStats();loadConversations();}),
+    mkAction(t('reprocess'),'refresh-cw','',async()=>{await fetch('/api/conversations/'+encodeURIComponent(c.id)+'/reprocess',{method:'POST'});closeModal();loadStats();loadConversations();}),
+    mkAction(t('extract'),'brain','',async function(){const txt=this.childNodes[1];txt.textContent=' '+t('extracting');const r=await fetch('/api/conversations/'+encodeURIComponent(c.id)+'/extract',{method:'POST'});const res=await r.json();txt.textContent=' '+(res.ok?t('extracted'):t('failed'));}),
   );
   container.after(actions);
-
   document.getElementById('modal').classList.add('open');
   lucide.createIcons();
 }
+function closeModal(){document.getElementById('modal').classList.remove('open');}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 
-function closeModal() { document.getElementById('modal').classList.remove('open'); }
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
-
-// ── Tab Switching ──
+// ── Tabs ──
 function switchTab(name) {
-  document.querySelectorAll('.tab-btn').forEach(b => {
-    const tabName = b.getAttribute('data-i18n');
-    const active = tabName === name;
-    b.classList.toggle('!text-blue-400', active);
-    b.classList.toggle('!border-b-2', active);
-    b.classList.toggle('!border-blue-400', active);
-  });
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + name));
-  if (name === 'knowledge') loadKnowledge();
-  if (name === 'timeline') loadTimeline();
-  if (name === 'settings') loadSettings();
+  document.querySelectorAll('.tab-btn').forEach(b=>{const a=b.getAttribute('data-i18n')===name;b.classList.toggle('!text-blue-500',a);b.classList.toggle('!border-b-2',a);b.classList.toggle('!border-blue-500',a);});
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.id==='tab-'+name));
+  if(name==='knowledge')loadKnowledge(); if(name==='timeline')loadTimeline(); if(name==='settings')loadSettings();
 }
-
-// ── Knowledge ──
-let knowledgeType = '';
-function setKnowledgeType(btn, type) { knowledgeType = type; setFilter(btn, type); loadKnowledge(); }
+let knowledgeType='';
+function setKnowledgeType(btn,type){knowledgeType=type;setFilter(btn,type);loadKnowledge();}
 async function loadKnowledge() {
-  const params = new URLSearchParams({ limit: '100' });
-  if (knowledgeType) params.set('type', knowledgeType);
-  const exts = await api('/extractions?' + params);
-  const container = document.getElementById('knowledgeList');
-  container.replaceChildren();
-  if (!exts.length) { container.appendChild(el('div', 'text-center py-16 text-slate-500', t('no_extractions'))); return; }
-  const typeColors = { tech_solution: 'emerald', concept: 'amber', prompt: 'blue', work_log: 'slate' };
-  exts.forEach(e => {
-    const tc = typeColors[e.type] || 'slate';
-    const card = document.createElement('div');
-    card.className = 'bg-slate-800/30 border border-slate-800 rounded-xl p-4 mb-3 hover:border-slate-700 transition-colors';
-    card.innerHTML = `
-      <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-${tc}-500/10 text-${tc}-400 mb-2 inline-block">${e.type.replace('_',' ')}</span>
-      <div class="font-semibold text-sm text-slate-200 mb-1">${esc(e.title)}</div>
-      <div class="text-xs text-slate-400 leading-relaxed whitespace-pre-wrap">${esc(e.content.slice(0,500))}${e.content.length>500?'...':''}</div>
-      <div class="text-[10px] text-slate-600 mt-2">${(e.extracted_at||'').slice(0,10)}${e.model_used?' · '+e.model_used:''}</div>
-    `;
-    container.appendChild(card);
-  });
+  const params=new URLSearchParams({limit:'100'}); if(knowledgeType)params.set('type',knowledgeType);
+  const exts=await api('/extractions?'+params);
+  const container=document.getElementById('knowledgeList'); container.replaceChildren();
+  if(!exts.length){container.innerHTML=`<div class="${C.empty}">${t('no_extractions')}</div>`;return;}
+  const tc={tech_solution:'emerald',concept:'amber',prompt:'blue',work_log:'slate'};
+  exts.forEach(e=>{const c2=tc[e.type]||'slate';const card=document.createElement('div');
+    card.className=C.section.replace('p-5','p-4').replace('mb-4','mb-3')+' '+C.cardHover;
+    card.innerHTML=`<span class="text-[10px] font-mono px-2 py-0.5 rounded bg-${c2}-50 dark:bg-${c2}-500/10 text-${c2}-600 dark:text-${c2}-400 mb-2 inline-block">${e.type.replace('_',' ')}</span><div class="font-semibold text-sm ${C.text1} mb-1">${esc(e.title)}</div><div class="text-xs ${C.text2} leading-relaxed whitespace-pre-wrap">${esc(e.content.slice(0,500))}${e.content.length>500?'...':''}</div><div class="text-[10px] ${C.text4} mt-2">${(e.extracted_at||'').slice(0,10)}${e.model_used?' · '+e.model_used:''}</div>`;
+    container.appendChild(card);});
 }
-
-// ── Timeline ──
 async function loadTimeline() {
-  const exts = await api('/extractions?type=work_log&limit=50');
-  const container = document.getElementById('timelineList');
-  container.replaceChildren();
-  if (!exts.length) { container.appendChild(el('div', 'text-center py-16 text-slate-500', t('no_work_log'))); return; }
-  exts.forEach(e => {
-    const entry = document.createElement('div');
-    entry.className = 'flex gap-4 py-3 border-b border-slate-800/50';
-    entry.innerHTML = `
-      <div class="font-mono text-[11px] text-slate-600 whitespace-nowrap min-w-[80px] pt-0.5">${(e.extracted_at||'').slice(0,10)}</div>
-      <div class="flex-1">
-        <div class="font-semibold text-sm text-slate-200 mb-0.5">${esc(e.title)}</div>
-        <div class="text-xs text-slate-400">${esc(e.content)}</div>
-      </div>
-    `;
-    container.appendChild(entry);
-  });
+  const exts=await api('/extractions?type=work_log&limit=50');
+  const container=document.getElementById('timelineList'); container.replaceChildren();
+  if(!exts.length){container.innerHTML=`<div class="${C.empty}">${t('no_work_log')}</div>`;return;}
+  exts.forEach(e=>{const en=document.createElement('div');en.className='flex gap-4 py-3 border-b border-gray-100 dark:border-slate-800/50';
+    en.innerHTML=`<div class="font-mono text-[11px] ${C.text4} whitespace-nowrap min-w-[80px] pt-0.5">${(e.extracted_at||'').slice(0,10)}</div><div class="flex-1"><div class="font-semibold text-sm ${C.text1} mb-0.5">${esc(e.title)}</div><div class="text-xs ${C.text2}">${esc(e.content)}</div></div>`;
+    container.appendChild(en);});
 }
-
-// ── Settings ──
 async function loadSettings() {
-  const cfg = await api('/config');
-  const summary = await api('/stats/summary');
-  const container = document.getElementById('settingsContent');
-  container.replaceChildren();
-
-  function section(title, items) {
-    const s = document.createElement('div');
-    s.className = 'bg-slate-800/30 border border-slate-800 rounded-xl p-5 mb-4';
-    s.innerHTML = `<h3 class="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2">${title}</h3>`;
-    items.forEach(([k,v]) => { s.innerHTML += `<div class="flex justify-between py-1.5 text-xs"><span class="text-slate-400">${k}</span><span class="font-mono text-slate-200">${v??0}</span></div>`; });
-    container.appendChild(s);
-  }
-
-  section(`<i data-lucide="bar-chart-3" class="w-4 h-4"></i> ${t('overview')}`, [
-    [t('conversations_count'), summary.total],
-    [t('projects'), summary.project_count],
-    [t('extractions'), summary.extraction_count],
-    [t('total_words'), summary.total_words?.toLocaleString()],
-    [t('total_tokens_in'), summary.total_input_tokens?.toLocaleString()],
-    [t('total_tokens_out'), summary.total_output_tokens?.toLocaleString()],
-  ]);
-  section(`<i data-lucide="upload-cloud" class="w-4 h-4"></i> ${t('output_adapter')}`, [
-    [t('adapter'), cfg.output?.adapter || 'none'],
-    ...(cfg.output?.local ? [[t('path'), cfg.output.local.path]] : []),
-    ...(cfg.output?.fns ? [['FNS URL', cfg.output.fns.url]] : []),
-    ...(cfg.output?.git ? [['Git repo', cfg.output.git.repo_path]] : []),
-  ]);
-  section(`<i data-lucide="brain" class="w-4 h-4"></i> ${t('llm_extraction')}`, [
-    [t('adapter'), cfg.llm?.adapter || 'none'],
-    [t('min_words'), cfg.llm?.min_words || 100],
-  ]);
-  section(`<i data-lucide="cpu" class="w-4 h-4"></i> ${t('processor')}`, [
-    [t('enabled'), cfg.processor?.enabled ?? true],
-    [t('interval'), (cfg.processor?.interval_seconds || 30) + 's'],
-    [t('batch_size'), cfg.processor?.batch_size || 20],
-    [t('sync_dir'), cfg.processor?.sync_dir || 'aichatlog'],
-  ]);
+  const cfg=await api('/config'), summary=await api('/stats/summary');
+  const container=document.getElementById('settingsContent'); container.replaceChildren();
+  function section(title,items){const s=document.createElement('div');s.className=C.section;
+    s.innerHTML=`<h3 class="text-sm font-semibold ${C.text1} mb-3 flex items-center gap-2">${title}</h3>`;
+    items.forEach(([k,v])=>{s.innerHTML+=`<div class="flex justify-between py-1.5 text-xs"><span class="${C.text2}">${k}</span><span class="font-mono ${C.text1}">${v??0}</span></div>`;});
+    container.appendChild(s);}
+  section(`<i data-lucide="bar-chart-3" class="w-4 h-4"></i> ${t('overview')}`,[
+    [t('conversations_count'),summary.total],[t('projects'),summary.project_count],[t('extractions'),summary.extraction_count],
+    [t('total_words'),summary.total_words?.toLocaleString()],[t('total_tokens_in'),summary.total_input_tokens?.toLocaleString()],[t('total_tokens_out'),summary.total_output_tokens?.toLocaleString()]]);
+  section(`<i data-lucide="upload-cloud" class="w-4 h-4"></i> ${t('output_adapter')}`,[
+    [t('adapter'),cfg.output?.adapter||'none'],...(cfg.output?.local?[[t('path'),cfg.output.local.path]]:[]),...(cfg.output?.fns?[['FNS URL',cfg.output.fns.url]]:[]),...(cfg.output?.git?[['Git repo',cfg.output.git.repo_path]]:[])])
+  section(`<i data-lucide="brain" class="w-4 h-4"></i> ${t('llm_extraction')}`,[
+    [t('adapter'),cfg.llm?.adapter||'none'],[t('min_words'),cfg.llm?.min_words||100]]);
+  section(`<i data-lucide="cpu" class="w-4 h-4"></i> ${t('processor')}`,[
+    [t('enabled'),cfg.processor?.enabled??true],[t('interval'),(cfg.processor?.interval_seconds||30)+'s'],[t('batch_size'),cfg.processor?.batch_size||20],[t('sync_dir'),cfg.processor?.sync_dir||'aichatlog']]);
   lucide.createIcons();
 }
 
-function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-
 // ── Init ──
-(async () => {
-  try { const cfg = await api('/config'); if (cfg.lang && STRINGS[cfg.lang]) currentLang = cfg.lang; } catch(e) {}
-  // Theme: load from localStorage, default auto
-  currentTheme = localStorage.getItem('aichatlog-theme') || 'auto';
-  applyTheme(); updateThemeButtons();
-  applyI18n(); updateLangButtons(); switchTab('conversations'); loadStats(); loadConversations();
+(async()=>{
+  try{const cfg=await api('/config');if(cfg.lang&&STRINGS[cfg.lang])currentLang=cfg.lang;}catch(e){}
+  currentTheme=localStorage.getItem('aichatlog-theme')||'auto';
+  applyTheme(); updateThemeButtons(); applyI18n(); updateLangButtons();
+  switchTab('conversations'); loadStats(); loadConversations();
   lucide.createIcons();
 })();
 </script>
