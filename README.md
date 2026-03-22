@@ -1,5 +1,7 @@
 # aichatlog-server
 
+English | [简体中文](README.zh-CN.md)
+
 Universal AI conversation hub. Receives conversations from any source via the ConversationObject protocol, stores them in SQLite, and provides a REST API for querying.
 
 ## Quick Start
