@@ -6,15 +6,45 @@
 <title>AIChatLog Server</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<!-- Markdown rendering -->
+<script src="https://cdn.jsdelivr.net/npm/markdown-it@14/dist/markdown-it.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/github-dark.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/markdown-it-footnote@4/dist/markdown-it-footnote.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/markdown-it-texmath@1/texmath.min.js"></script>
 <script>
 tailwind.config = {
   darkMode: 'class',
-  theme: { extend: { fontFamily: { mono: ['JetBrains Mono','Fira Code','SF Mono','Menlo','Consolas','monospace'] } } }
+  theme: { extend: { fontFamily: { mono: ['JetBrains Mono','Fira Code','SF Mono','Menlo','Consolas','monospace'] } } },
+  plugins: []
 }
 </script>
 <style>
 .tab-panel{display:none}.tab-panel.active{display:block}
 .modal-overlay{display:none}.modal-overlay.open{display:flex}
+/* Prose overrides for chat bubbles */
+.md-content{font-size:14px;line-height:1.7}
+.md-content h1,.md-content h2,.md-content h3{font-size:1em;font-weight:600;margin:0.5em 0 0.25em}
+.md-content p{margin:0.3em 0}
+.md-content ul,.md-content ol{margin:0.3em 0;padding-left:1.5em}
+.md-content li{margin:0.1em 0}
+.md-content table{border-collapse:collapse;margin:0.5em 0;font-size:13px;width:100%}
+.md-content th,.md-content td{border:1px solid #374151;padding:4px 10px;text-align:left}
+.dark .md-content th,.dark .md-content td{border-color:#334155}
+.md-content th{font-weight:600;background:#1e293b}
+.dark .md-content th{background:#1e293b}
+.md-content blockquote{border-left:3px solid #3b82f6;padding-left:12px;margin:0.5em 0;opacity:0.85}
+.md-content pre{border-radius:8px;padding:12px;margin:0.5em 0;overflow-x:auto;font-size:13px}
+.md-content code:not(pre code){background:rgba(100,116,139,0.2);padding:1px 5px;border-radius:4px;font-size:0.9em}
+.md-content a{color:#3b82f6;text-decoration:underline}
+.md-content img{max-width:100%;border-radius:8px}
+.md-content .footnotes{font-size:12px;opacity:0.7;margin-top:1em;border-top:1px solid #334155;padding-top:0.5em}
+.md-content .katex{font-size:1.1em}
+.md-content .task-list-item{list-style:none;margin-left:-1em}
+.md-content .task-list-item input{margin-right:0.5em}
 ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:#64748b;border-radius:3px}
 </style>
 </head>
@@ -385,119 +415,38 @@ async function showDetail(id) {
 
   const container = document.getElementById('modalMessages');
   container.replaceChildren();
-  function renderContent(parent,text){
-    if(!text)return;
-    // Step 1: split by code blocks
-    const cp=/```(\w*)\n([\s\S]*?)```/g; let li=0,m2;
-    while((m2=cp.exec(text))!==null){
-      if(m2.index>li) renderText(parent, text.slice(li,m2.index));
-      if(m2[1]){const lb=document.createElement('span');lb.className='text-[10px] font-mono '+C.text3+' block mt-2';lb.textContent=m2[1];parent.appendChild(lb);}
-      const pre=document.createElement('pre');pre.className=C.code+' rounded-lg p-3 my-2 overflow-x-auto text-[13px] font-mono leading-relaxed';
-      const cd=document.createElement('code');cd.textContent=m2[2].trimEnd();pre.appendChild(cd);parent.appendChild(pre);li=m2.index+m2[0].length;
+  // markdown-it initialization
+  const md = window.markdownit({
+    html: false, linkify: true, typographer: true,
+    highlight: function(str, lang) {
+      if (lang && hljs.getLanguage(lang)) {
+        try { return hljs.highlight(str, {language: lang}).value; } catch(_) {}
+      }
+      try { return hljs.highlightAuto(str).value; } catch(_) {}
+      return '';
     }
-    if(li<text.length) renderText(parent, text.slice(li));
-  }
+  });
+  if (window.markdownitFootnote) md.use(window.markdownitFootnote);
+  if (window.texmath) md.use(window.texmath, {engine: katex, delimiters: 'dollars'});
 
-  // Step 2: render non-code text with XML tag folding, tables, lists
-  function renderText(parent, text) {
-    // Strip/fold XML tags
-    text = text.replace(/<(system-reminder|ide_selection|available-deferred-tools|task-notification|gitStatus)>[\s\S]*?<\/\1>/g, function(m, tag) {
-      return '\n[' + tag + ']\n';
+  function stripXmlTags(text) {
+    text = text.replace(/<(system-reminder|ide_selection|available-deferred-tools|task-notification|gitStatus)>[\s\S]*?<\/\1>/g, (_, tag) => '\n`[' + tag + ']`\n');
+    text = text.replace(/<ide_opened_file>[^<]*<\/ide_opened_file>/g, m => {
+      const f = m.match(/file\s+([^\s]+)/);
+      return f ? '`[Opened: ' + f[1].split('/').pop() + ']`' : '`[file opened]`';
     });
-    text = text.replace(/<ide_opened_file>[^<]*<\/ide_opened_file>/g, function(m) {
-      const inner = m.replace(/<\/?ide_opened_file>/g, '').trim();
-      const file = inner.match(/file\s+([^\s]+)/);
-      return file ? '[Opened: ' + file[1].split('/').pop() + ']' : '[file opened]';
-    });
-    // Remove remaining XML-like tags but keep content between them
     text = text.replace(/<[a-z_-]+(?:\s[^>]*)?>|<\/[a-z_-]+>/gi, '');
-
-    const lines = text.split('\n');
-    let i = 0;
-    while (i < lines.length) {
-      const line = lines[i];
-
-      // Table detection: | col | col |
-      if (/^\s*\|.*\|/.test(line)) {
-        const tableLines = [];
-        while (i < lines.length && /^\s*\|.*\|/.test(lines[i])) {
-          tableLines.push(lines[i]); i++;
-        }
-        renderTable(parent, tableLines);
-        continue;
-      }
-
-      // Unordered list: - item or * item
-      if (/^\s*[-*]\s+/.test(line)) {
-        const ul = document.createElement('ul');
-        ul.className = 'list-disc list-inside my-1 space-y-0.5';
-        while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) {
-          const li2 = document.createElement('li');
-          li2.className = 'text-sm';
-          li2.textContent = lines[i].replace(/^\s*[-*]\s+/, '');
-          ul.appendChild(li2); i++;
-        }
-        parent.appendChild(ul);
-        continue;
-      }
-
-      // Ordered list: 1. item
-      if (/^\s*\d+\.\s+/.test(line)) {
-        const ol = document.createElement('ol');
-        ol.className = 'list-decimal list-inside my-1 space-y-0.5';
-        while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
-          const li2 = document.createElement('li');
-          li2.className = 'text-sm';
-          li2.textContent = lines[i].replace(/^\s*\d+\.\s+/, '');
-          ol.appendChild(li2); i++;
-        }
-        parent.appendChild(ol);
-        continue;
-      }
-
-      // Collapsed tag indicator [tag-name]
-      if (/^\s*\[[a-z_-]+\]\s*$/i.test(line.trim())) {
-        const tag = document.createElement('span');
-        tag.className = 'inline-block text-[10px] px-2 py-0.5 my-1 rounded bg-gray-200 dark:bg-slate-700 '+C.text3+' font-mono';
-        tag.textContent = line.trim();
-        parent.appendChild(tag);
-        parent.appendChild(document.createElement('br'));
-        i++; continue;
-      }
-
-      // Regular text line
-      if (line.trim()) {
-        const s = document.createElement('span');
-        s.className = 'whitespace-pre-wrap';
-        s.textContent = line + '\n';
-        parent.appendChild(s);
-      } else {
-        parent.appendChild(document.createElement('br'));
-      }
-      i++;
-    }
+    return text;
   }
 
-  function renderTable(parent, lines) {
-    const tbl = document.createElement('table');
-    tbl.className = 'my-2 text-xs border-collapse w-full';
-    lines.forEach((line, idx) => {
-      // Skip separator row (|---|---|)
-      if (/^\s*\|[\s-:|]+\|\s*$/.test(line)) return;
-      const tr = document.createElement('tr');
-      tr.className = idx === 0 ? 'border-b border-gray-300 dark:border-slate-600' : 'border-b border-gray-200 dark:border-slate-700';
-      const cells = line.split('|').filter(c => c.trim() !== '');
-      cells.forEach(cell => {
-        const td = document.createElement(idx === 0 ? 'th' : 'td');
-        td.className = idx === 0
-          ? 'px-3 py-1.5 text-left font-medium '+C.text2
-          : 'px-3 py-1.5 '+C.text1;
-        td.textContent = cell.trim();
-        tr.appendChild(td);
-      });
-      tbl.appendChild(tr);
-    });
-    parent.appendChild(tbl);
+  function renderContent(parent, text) {
+    if (!text) return;
+    text = stripXmlTags(text);
+    const html = DOMPurify.sanitize(md.render(text));
+    const div = document.createElement('div');
+    div.className = 'md-content';
+    div.innerHTML = html;
+    parent.appendChild(div);
   }
   (c.messages||[]).filter(m=>!m.is_context).forEach(m=>{
     const isU=m.role==='user';
