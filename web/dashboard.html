@@ -430,12 +430,32 @@ async function showDetail(id) {
   if (window.texmath) md.use(window.texmath, {engine: katex, delimiters: 'dollars'});
 
   function stripXmlTags(text) {
-    text = text.replace(/<(system-reminder|ide_selection|available-deferred-tools|task-notification|gitStatus)>[\s\S]*?<\/\1>/g, (_, tag) => '\n`[' + tag + ']`\n');
+    // 1. Large context blocks → badge + code block (tag names support a-z, :, -, _)
+    text = text.replace(/<(system-reminder|ide_selection|available-deferred-tools|task-notification|gitStatus|fast_mode_info|claudeMd|antml:thinking)>([\s\S]*?)<\/\1>/g, (_, tag, body) => {
+      const n = body.trim().split('\n').length;
+      return '\n`[' + tag + ' (' + n + ' lines)]`\n```\n' + body.trim() + '\n```\n';
+    });
+    // 2. File opened tags → file badge
     text = text.replace(/<ide_opened_file>[^<]*<\/ide_opened_file>/g, m => {
       const f = m.match(/file\s+([^\s]+)/);
       return f ? '`[Opened: ' + f[1].split('/').pop() + ']`' : '`[file opened]`';
     });
-    text = text.replace(/<[a-z_-]+(?:\s[^>]*)?>|<\/[a-z_-]+>/gi, '');
+    // 3. Command/hook tags → badge + content
+    text = text.replace(/<(command-name|command-message|command-args|local-command-caveat|local-command-stdout|user-prompt-submit-hook)>([\s\S]*?)<\/\1>/g, (_, tag, body) => {
+      return '`[' + tag + ']` ' + body.trim();
+    });
+    // 4. Remaining paired tags (supports : in tag name) → badge + keep content
+    text = text.replace(/<([a-zA-Z][a-zA-Z0-9_:-]*)(?:\s[^>]*)?>(([\s\S]*?))<\/\1>/g, (_, tag, body) => {
+      if (!body.trim()) return '`[' + tag + ']`';
+      return '`[' + tag + ']` ' + body.trim();
+    });
+    // 5. Self-closing tags → badge
+    text = text.replace(/<[a-zA-Z][a-zA-Z0-9_:-]*(?:\s[^>]*)?\s*\/>/g, m => {
+      const tag = m.match(/<([a-zA-Z][a-zA-Z0-9_:-]*)/);
+      return tag ? '`[' + tag[1] + ']`' : '';
+    });
+    // 6. Orphan open/close tags → badge
+    text = text.replace(/<\/?([a-zA-Z][a-zA-Z0-9_:-]*)(?:\s[^>]*)?>/g, (_, tag) => '`[' + tag + ']`');
     return text;
   }
 
@@ -462,7 +482,7 @@ async function showDetail(id) {
     bubble.className=isU
       ?'rounded-2xl rounded-br-sm px-4 py-3 bg-blue-500 text-white text-sm leading-relaxed'
       :'rounded-2xl rounded-bl-sm px-4 py-3 bg-gray-100 dark:bg-slate-800 text-gray-900 dark:text-slate-200 text-sm leading-relaxed border border-gray-200 dark:border-slate-700/50';
-    if(isU)bubble.textContent=m.content; else renderContent(bubble,m.content);
+    renderContent(bubble,m.content);
     div.appendChild(bubble);
     if(!isU&&(m.input_tokens||m.output_tokens)){const tk=document.createElement('div');tk.className='text-[10px] '+C.text4+' mt-1 flex items-center gap-1';tk.innerHTML=`<i data-lucide="coins" class="w-3 h-3"></i> ${(m.input_tokens/1000).toFixed(1)}k in / ${(m.output_tokens/1000).toFixed(1)}k out`;div.appendChild(tk);}
     container.appendChild(div);
