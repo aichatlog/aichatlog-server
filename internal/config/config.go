@@ -13,6 +13,7 @@ import (
 
 // ServerConfig is the full server configuration.
 type ServerConfig struct {
+	Lang      string          `json:"lang"` // "en", "zh-CN", "zh-TW"
 	Output    output.Config   `json:"output"`
 	Processor ProcessorConfig `json:"processor"`
 	LLM       llm.Config      `json:"llm"`

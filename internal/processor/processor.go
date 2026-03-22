@@ -17,18 +17,17 @@ type Processor struct {
 	adapter   output.Adapter
 	extractor *Extractor
 	syncDir   string
+	lang      string
 	interval  time.Duration
 	batch     int
 }
 
 // Config for the processor.
 type Config struct {
-	// Interval between processing cycles. Default: 30s.
-	Interval time.Duration
-	// BatchSize is the max conversations to process per cycle. Default: 20.
+	Interval  time.Duration
 	BatchSize int
-	// SyncDir is the base directory in the output path. Default: "aichatlog".
-	SyncDir string
+	SyncDir   string
+	Lang      string // "en", "zh-CN", "zh-TW"
 }
 
 // New creates a new Processor. If adapter is nil, processing is disabled.
@@ -37,6 +36,7 @@ func New(store *storage.Store, adapter output.Adapter, extractor *Extractor, cfg
 	interval := 30 * time.Second
 	batch := 20
 	syncDir := "aichatlog"
+	lang := "en"
 
 	if cfg != nil {
 		if cfg.Interval > 0 {
@@ -48,6 +48,9 @@ func New(store *storage.Store, adapter output.Adapter, extractor *Extractor, cfg
 		if cfg.SyncDir != "" {
 			syncDir = cfg.SyncDir
 		}
+		if cfg.Lang != "" {
+			lang = cfg.Lang
+		}
 	}
 
 	return &Processor{
@@ -55,6 +58,7 @@ func New(store *storage.Store, adapter output.Adapter, extractor *Extractor, cfg
 		adapter:   adapter,
 		extractor: extractor,
 		syncDir:   syncDir,
+		lang:      lang,
 		interval:  interval,
 		batch:     batch,
 	}
@@ -130,7 +134,7 @@ func (p *Processor) processOne(id string) error {
 	}
 
 	// 3. Render markdown
-	content, err := RenderMarkdown(conv, messages)
+	content, err := RenderMarkdown(conv, messages, p.lang)
 	if err != nil {
 		return err
 	}

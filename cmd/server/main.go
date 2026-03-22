@@ -96,6 +96,7 @@ func main() {
 		Interval:  time.Duration(cfg.Processor.Interval) * time.Second,
 		BatchSize: cfg.Processor.BatchSize,
 		SyncDir:   cfg.Processor.SyncDir,
+		Lang:      cfg.Lang,
 	})
 
 	if cfg.Processor.Enabled {

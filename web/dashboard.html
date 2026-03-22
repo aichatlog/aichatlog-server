@@ -128,10 +128,10 @@ tr.data-row { cursor: pointer; }
   </header>
 
   <nav class="tab-nav">
-    <button type="button" class="tab-btn active" onclick="switchTab('conversations')">Conversations</button>
-    <button type="button" class="tab-btn" onclick="switchTab('knowledge')">Knowledge</button>
-    <button type="button" class="tab-btn" onclick="switchTab('timeline')">Timeline</button>
-    <button type="button" class="tab-btn" onclick="switchTab('settings')">Settings</button>
+    <button type="button" class="tab-btn active" onclick="switchTab('conversations')" data-i18n="conversations">Conversations</button>
+    <button type="button" class="tab-btn" onclick="switchTab('knowledge')" data-i18n="knowledge">Knowledge</button>
+    <button type="button" class="tab-btn" onclick="switchTab('timeline')" data-i18n="timeline">Timeline</button>
+    <button type="button" class="tab-btn" onclick="switchTab('settings')" data-i18n="settings">Settings</button>
   </nav>
 
   <div id="tab-conversations" class="tab-panel active">
@@ -140,28 +140,28 @@ tr.data-row { cursor: pointer; }
   <div class="toolbar">
     <div class="search-wrap">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="5"/><path d="M11 11l3.5 3.5"/></svg>
-      <input type="text" id="searchInput" placeholder="Search conversations..." oninput="onSearch()">
+      <input type="text" id="searchInput" placeholder="Search conversations..." data-i18n-placeholder="search" oninput="onSearch()">
     </div>
     <div class="filter-tabs" id="filterTabs">
-      <button class="filter-tab active" data-filter="" onclick="setFilter(this, '')">All</button>
-      <button class="filter-tab" data-filter="received" onclick="setFilter(this, 'received')">Received</button>
-      <button class="filter-tab" data-filter="synced" onclick="setFilter(this, 'synced')">Synced</button>
-      <button class="filter-tab" data-filter="ignored" onclick="setFilter(this, 'ignored')">Ignored</button>
+      <button class="filter-tab active" data-filter="" onclick="setFilter(this, '')" data-i18n="all">All</button>
+      <button class="filter-tab" data-filter="received" onclick="setFilter(this, 'received')" data-i18n="received">Received</button>
+      <button class="filter-tab" data-filter="synced" onclick="setFilter(this, 'synced')" data-i18n="synced">Synced</button>
+      <button class="filter-tab" data-filter="ignored" onclick="setFilter(this, 'ignored')" data-i18n="ignored">Ignored</button>
     </div>
   </div>
 
   <table>
     <thead>
       <tr>
-        <th onclick="setSort('started_at')">Date</th>
-        <th onclick="setSort('title')">Title</th>
-        <th onclick="setSort('project')">Project</th>
-        <th>Source</th>
-        <th>Model</th>
-        <th onclick="setSort('message_count')">Msgs</th>
-        <th onclick="setSort('word_count')">Words</th>
-        <th>Tokens</th>
-        <th>Status</th>
+        <th onclick="setSort('started_at')" data-i18n="date">Date</th>
+        <th onclick="setSort('title')" data-i18n="title">Title</th>
+        <th onclick="setSort('project')" data-i18n="project">Project</th>
+        <th data-i18n="source">Source</th>
+        <th data-i18n="model">Model</th>
+        <th onclick="setSort('message_count')" data-i18n="msgs">Msgs</th>
+        <th onclick="setSort('word_count')" data-i18n="words">Words</th>
+        <th data-i18n="tokens">Tokens</th>
+        <th data-i18n="status">Status</th>
       </tr>
     </thead>
     <tbody id="tbody"></tbody>
@@ -172,11 +172,11 @@ tr.data-row { cursor: pointer; }
   <div id="tab-knowledge" class="tab-panel">
     <div class="toolbar">
       <div class="filter-tabs">
-        <button type="button" class="filter-tab active" data-ktype="" onclick="setKnowledgeType(this,'')">All</button>
-        <button type="button" class="filter-tab" data-ktype="tech_solution" onclick="setKnowledgeType(this,'tech_solution')">Tech Solutions</button>
-        <button type="button" class="filter-tab" data-ktype="concept" onclick="setKnowledgeType(this,'concept')">Concepts</button>
-        <button type="button" class="filter-tab" data-ktype="prompt" onclick="setKnowledgeType(this,'prompt')">Prompts</button>
-        <button type="button" class="filter-tab" data-ktype="work_log" onclick="setKnowledgeType(this,'work_log')">Work Log</button>
+        <button type="button" class="filter-tab active" data-ktype="" onclick="setKnowledgeType(this,'')" data-i18n="all">All</button>
+        <button type="button" class="filter-tab" data-ktype="tech_solution" onclick="setKnowledgeType(this,'tech_solution')" data-i18n="tech_solutions">Tech Solutions</button>
+        <button type="button" class="filter-tab" data-ktype="concept" onclick="setKnowledgeType(this,'concept')" data-i18n="concepts">Concepts</button>
+        <button type="button" class="filter-tab" data-ktype="prompt" onclick="setKnowledgeType(this,'prompt')" data-i18n="prompts">Prompts</button>
+        <button type="button" class="filter-tab" data-ktype="work_log" onclick="setKnowledgeType(this,'work_log')" data-i18n="work_log">Work Log</button>
       </div>
     </div>
     <div id="knowledgeList"></div>
@@ -203,6 +203,82 @@ tr.data-row { cursor: pointer; }
 </div>
 
 <script>
+// ── i18n ──
+const STRINGS = {
+  en: {
+    conversations: 'Conversations', knowledge: 'Knowledge', timeline: 'Timeline', settings: 'Settings',
+    search: 'Search conversations...', all: 'All', received: 'Received', synced: 'Synced', ignored: 'Ignored',
+    date: 'Date', title: 'Title', project: 'Project', source: 'Source', model: 'Model',
+    msgs: 'Msgs', words: 'Words', tokens: 'Tokens', status: 'Status',
+    total: 'Total', prev: 'Prev', next: 'Next', page: 'Page',
+    no_conversations: t('no_conversations'),
+    tech_solutions: 'Tech Solutions', concepts: 'Concepts', prompts: 'Prompts', work_log: 'Work Log',
+    no_extractions: 'No extractions yet. Configure LLM in settings to enable knowledge extraction.',
+    no_work_log: 'No work log entries. LLM extraction creates these automatically.',
+    delete: 'Delete', reprocess: 'Reprocess', extract: 'Extract Knowledge',
+    confirm_delete: 'Delete this conversation?',
+    extracting: 'Extracting...', extracted: 'Extracted!', failed: 'Failed',
+    overview: 'Overview', output_adapter: 'Output Adapter', llm_extraction: 'LLM Extraction',
+    processor: 'Processor', adapter: 'Adapter', path: 'Path', enabled: 'Enabled',
+    interval: 'Interval', batch_size: 'Batch size', sync_dir: 'Sync directory',
+    min_words: 'Min words', conversations_count: 'Conversations', projects: 'Projects',
+    extractions: 'Extractions', total_words: 'Total words',
+    total_tokens_in: 'Total tokens (in)', total_tokens_out: 'Total tokens (out)',
+    tokens_in_out: 'Tokens: %d in / %d out', msgs_words: '%d msgs / %d words',
+  },
+  'zh-CN': {
+    conversations: '对话', knowledge: '知识库', timeline: '时间线', settings: '设置',
+    search: '搜索对话...', all: '全部', received: '已接收', synced: '已同步', ignored: '已忽略',
+    date: '日期', title: '标题', project: '项目', source: '来源', model: '模型',
+    msgs: '消息', words: '字数', tokens: 'Token', status: '状态',
+    total: '总计', prev: '上一页', next: '下一页', page: '第',
+    no_conversations: '没有找到对话',
+    tech_solutions: '技术方案', concepts: '概念', prompts: '提示词', work_log: '工作日志',
+    no_extractions: '暂无知识提取。请在设置中配置 LLM 以启用。',
+    no_work_log: '暂无工作日志。LLM 提取会自动生成。',
+    delete: '删除', reprocess: '重新处理', extract: '提取知识',
+    confirm_delete: '确定要删除这条对话吗？',
+    extracting: '提取中...', extracted: '提取完成！', failed: '失败',
+    overview: '概览', output_adapter: '输出适配器', llm_extraction: 'LLM 提取',
+    processor: '处理器', adapter: '适配器', path: '路径', enabled: '启用',
+    interval: '间隔', batch_size: '批量大小', sync_dir: '同步目录',
+    min_words: '最少字数', conversations_count: '对话数', projects: '项目数',
+    extractions: '提取数', total_words: '总字数',
+    total_tokens_in: '总输入 Token', total_tokens_out: '总输出 Token',
+    tokens_in_out: 'Token: %d 输入 / %d 输出', msgs_words: '%d 条消息 / %d 字',
+  },
+  'zh-TW': {
+    conversations: '對話', knowledge: '知識庫', timeline: '時間線', settings: '設定',
+    search: '搜尋對話...', all: '全部', received: '已接收', synced: '已同步', ignored: '已忽略',
+    date: '日期', title: '標題', project: '專案', source: '來源', model: '模型',
+    msgs: '訊息', words: '字數', tokens: 'Token', status: '狀態',
+    total: '總計', prev: '上一頁', next: '下一頁', page: '第',
+    no_conversations: '沒有找到對話',
+    tech_solutions: '技術方案', concepts: '概念', prompts: '提示詞', work_log: '工作日誌',
+    no_extractions: '暫無知識擷取。請在設定中配置 LLM 以啟用。',
+    no_work_log: '暫無工作日誌。LLM 擷取會自動生成。',
+    delete: '刪除', reprocess: '重新處理', extract: '擷取知識',
+    confirm_delete: '確定要刪除這條對話嗎？',
+    extracting: '擷取中...', extracted: '擷取完成！', failed: '失敗',
+    overview: '概覽', output_adapter: '輸出適配器', llm_extraction: 'LLM 擷取',
+    processor: '處理器', adapter: '適配器', path: '路徑', enabled: '啟用',
+    interval: '間隔', batch_size: '批次大小', sync_dir: '同步目錄',
+    min_words: '最少字數', conversations_count: '對話數', projects: '專案數',
+    extractions: '擷取數', total_words: '總字數',
+    total_tokens_in: '總輸入 Token', total_tokens_out: '總輸出 Token',
+    tokens_in_out: 'Token: %d 輸入 / %d 輸出', msgs_words: '%d 則訊息 / %d 字',
+  },
+};
+let currentLang = 'en';
+function t(key) { return (STRINGS[currentLang] || STRINGS.en)[key] || STRINGS.en[key] || key; }
+function tf(key, ...args) { let s = t(key); args.forEach(a => s = s.replace('%d', a)); return s; }
+
+// Apply i18n to static HTML elements with data-i18n attribute
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => { el.placeholder = t(el.dataset.i18nPlaceholder); });
+}
+
 const PAGE_SIZE = 50;
 let state = { filter: '', query: '', sort: 'started_at', order: 'desc', offset: 0 };
 let searchTimer = null;
@@ -236,10 +312,10 @@ async function loadStats() {
   const container = document.getElementById('statsRow');
   container.replaceChildren();
   [
-    { k: '', label: 'Total', v: s.total },
-    { k: 'received', label: 'Received', v: s.received },
-    { k: 'synced', label: 'Synced', v: s.synced },
-    { k: 'ignored', label: 'Ignored', v: s.ignored },
+    { k: '', label: t('total'), v: s.total },
+    { k: 'received', label: t('received'), v: s.received },
+    { k: 'synced', label: t('synced'), v: s.synced },
+    { k: 'ignored', label: t('ignored'), v: s.ignored },
   ].forEach(x => {
     const card = el('div', { class: 'stat-card' + (state.filter === x.k ? ' active' : ''), 'data-filter': x.k }, [
       el('div', { class: 'label' }, x.label),
@@ -264,7 +340,7 @@ async function loadConversations() {
   tbody.replaceChildren();
 
   if (!rows.length) {
-    const tr = el('tr', {}, [el('td', { colspan: '9', class: 'empty' }, 'No conversations found')]);
+    const tr = el('tr', {}, [el('td', { colspan: '9', class: 'empty' }, t('no_conversations'))]);
     tbody.appendChild(tr);
     document.getElementById('pagination').replaceChildren();
     return;
@@ -310,12 +386,12 @@ async function loadConversations() {
   pag.replaceChildren();
   const page = Math.floor(state.offset / PAGE_SIZE);
   const hasNext = rows.length === PAGE_SIZE;
-  const prevBtn = el('button', {}, 'Prev');
+  const prevBtn = el('button', {}, t('prev'));
   prevBtn.disabled = page === 0;
   prevBtn.addEventListener('click', () => goPage(page - 1));
-  const info = el('button', { class: 'page-info' }, 'Page ' + (page + 1));
+  const info = el('button', { class: 'page-info' }, t('page') + ' ' + (page + 1));
   info.disabled = true;
-  const nextBtn = el('button', {}, 'Next');
+  const nextBtn = el('button', {}, t('next'));
   nextBtn.disabled = !hasNext;
   nextBtn.addEventListener('click', () => goPage(page + 1));
   pag.append(prevBtn, info, nextBtn);
@@ -365,9 +441,9 @@ async function showDetail(id) {
   meta.appendChild(srcSpan);
   if (c.project) meta.appendChild(el('span', {}, 'Project: ' + c.project));
   if (c.model) meta.appendChild(el('span', {}, 'Model: ' + c.model));
-  meta.appendChild(el('span', {}, c.message_count + ' msgs / ' + c.word_count + ' words'));
+  meta.appendChild(el('span', {}, tf('msgs_words', c.message_count, c.word_count)));
   if (c.total_input_tokens || c.total_output_tokens) {
-    meta.appendChild(el('span', {}, 'Tokens: ' + c.total_input_tokens + ' in / ' + c.total_output_tokens + ' out'));
+    meta.appendChild(el('span', {}, tf('tokens_in_out', c.total_input_tokens, c.total_output_tokens)));
   }
   const statusSpan = document.createElement('span');
   statusSpan.appendChild(el('span', { class: 'badge badge-' + c.status }, c.status));
@@ -397,20 +473,20 @@ async function showDetail(id) {
   const actions = document.createElement('div');
   actions.style.cssText = 'padding:12px 24px;border-top:1px solid var(--border);display:flex;gap:8px';
   const delBtn = el('button', { class: 'action-btn danger', onclick: async () => {
-    if (!confirm('Delete this conversation?')) return;
+    if (!confirm(t('confirm_delete'))) return;
     await fetch('/api/conversations/' + encodeURIComponent(c.id), { method: 'DELETE' });
     closeModal(); loadStats(); loadConversations();
-  }}, 'Delete');
+  }}, t('delete'));
   const reprocessBtn = el('button', { class: 'action-btn', onclick: async () => {
     await fetch('/api/conversations/' + encodeURIComponent(c.id) + '/reprocess', { method: 'POST' });
     closeModal(); loadStats(); loadConversations();
-  }}, 'Reprocess');
+  }}, t('reprocess'));
   const extractBtn = el('button', { class: 'action-btn', onclick: async () => {
-    extractBtn.textContent = 'Extracting...';
+    extractBtn.textContent = t('extracting');
     const r = await fetch('/api/conversations/' + encodeURIComponent(c.id) + '/extract', { method: 'POST' });
     const res = await r.json();
-    extractBtn.textContent = res.ok ? 'Extracted!' : 'Failed';
-  }}, 'Extract Knowledge');
+    extractBtn.textContent = res.ok ? t('extracted') : t('failed');
+  }}, t('extract'));
   actions.append(delBtn, reprocessBtn, extractBtn);
   container.after(actions);
 
@@ -444,7 +520,7 @@ async function loadKnowledge() {
   const container = document.getElementById('knowledgeList');
   container.replaceChildren();
   if (!exts.length) {
-    container.appendChild(el('div', { class: 'empty' }, 'No extractions yet. Configure LLM in settings to enable knowledge extraction.'));
+    container.appendChild(el('div', { class: 'empty' }, t('no_extractions')));
     return;
   }
   exts.forEach(e => {
@@ -465,7 +541,7 @@ async function loadTimeline() {
   const container = document.getElementById('timelineList');
   container.replaceChildren();
   if (!exts.length) {
-    container.appendChild(el('div', { class: 'empty' }, 'No work log entries. LLM extraction creates these automatically.'));
+    container.appendChild(el('div', { class: 'empty' }, t('no_work_log')));
     return;
   }
   exts.forEach(e => {
@@ -488,14 +564,14 @@ async function loadSettings() {
   container.replaceChildren();
 
   // Stats summary
-  const statsSection = el('div', { class: 'settings-section' }, [el('h3', {}, 'Overview')]);
+  const statsSection = el('div', { class: 'settings-section' }, [el('h3', {}, t('overview'))]);
   [
-    ['Conversations', summary.total],
-    ['Projects', summary.project_count],
-    ['Extractions', summary.extraction_count],
-    ['Total words', summary.total_words?.toLocaleString()],
-    ['Total tokens (in)', summary.total_input_tokens?.toLocaleString()],
-    ['Total tokens (out)', summary.total_output_tokens?.toLocaleString()],
+    [t('conversations_count'), summary.total],
+    [t('projects'), summary.project_count],
+    [t('extractions'), summary.extraction_count],
+    [t('total_words'), summary.total_words?.toLocaleString()],
+    [t('total_tokens_in'), summary.total_input_tokens?.toLocaleString()],
+    [t('total_tokens_out'), summary.total_output_tokens?.toLocaleString()],
   ].forEach(([k, v]) => {
     statsSection.appendChild(el('div', { class: 'settings-row' }, [
       el('span', { class: 'settings-key' }, k),
@@ -505,25 +581,24 @@ async function loadSettings() {
   container.appendChild(statsSection);
 
   // Output adapter config
-  const outputSection = el('div', { class: 'settings-section' }, [el('h3', {}, 'Output Adapter')]);
+  const outputSection = el('div', { class: 'settings-section' }, [el('h3', {}, t('output_adapter'))]);
   [
-    ['Adapter', cfg.output?.adapter || 'none'],
+    [t('adapter'), cfg.output?.adapter || 'none'],
   ].forEach(([k, v]) => {
     outputSection.appendChild(el('div', { class: 'settings-row' }, [
       el('span', { class: 'settings-key' }, k),
       el('span', { class: 'settings-val' }, v),
     ]));
   });
-  if (cfg.output?.local) outputSection.appendChild(el('div', { class: 'settings-row' }, [el('span', { class: 'settings-key' }, 'Path'), el('span', { class: 'settings-val' }, cfg.output.local.path)]));
+  if (cfg.output?.local) outputSection.appendChild(el('div', { class: 'settings-row' }, [el('span', { class: 'settings-key' }, t('path')), el('span', { class: 'settings-val' }, cfg.output.local.path)]));
   if (cfg.output?.fns) outputSection.appendChild(el('div', { class: 'settings-row' }, [el('span', { class: 'settings-key' }, 'FNS URL'), el('span', { class: 'settings-val' }, cfg.output.fns.url)]));
   if (cfg.output?.git) outputSection.appendChild(el('div', { class: 'settings-row' }, [el('span', { class: 'settings-key' }, 'Git repo'), el('span', { class: 'settings-val' }, cfg.output.git.repo_path)]));
   container.appendChild(outputSection);
 
-  // LLM config
-  const llmSection = el('div', { class: 'settings-section' }, [el('h3', {}, 'LLM Extraction')]);
+  const llmSection = el('div', { class: 'settings-section' }, [el('h3', {}, t('llm_extraction'))]);
   [
-    ['Adapter', cfg.llm?.adapter || 'none'],
-    ['Min words', cfg.llm?.min_words || 100],
+    [t('adapter'), cfg.llm?.adapter || 'none'],
+    [t('min_words'), cfg.llm?.min_words || 100],
   ].forEach(([k, v]) => {
     llmSection.appendChild(el('div', { class: 'settings-row' }, [
       el('span', { class: 'settings-key' }, k),
@@ -533,12 +608,12 @@ async function loadSettings() {
   container.appendChild(llmSection);
 
   // Processor config
-  const procSection = el('div', { class: 'settings-section' }, [el('h3', {}, 'Processor')]);
+  const procSection = el('div', { class: 'settings-section' }, [el('h3', {}, t('processor'))]);
   [
-    ['Enabled', cfg.processor?.enabled ?? true],
-    ['Interval', (cfg.processor?.interval_seconds || 30) + 's'],
-    ['Batch size', cfg.processor?.batch_size || 20],
-    ['Sync directory', cfg.processor?.sync_dir || 'aichatlog'],
+    [t('enabled'), cfg.processor?.enabled ?? true],
+    [t('interval'), (cfg.processor?.interval_seconds || 30) + 's'],
+    [t('batch_size'), cfg.processor?.batch_size || 20],
+    [t('sync_dir'), cfg.processor?.sync_dir || 'aichatlog'],
   ].forEach(([k, v]) => {
     procSection.appendChild(el('div', { class: 'settings-row' }, [
       el('span', { class: 'settings-key' }, k),
@@ -548,9 +623,16 @@ async function loadSettings() {
   container.appendChild(procSection);
 }
 
-// Init
-loadStats();
-loadConversations();
+// Init: load lang from config, then render
+(async () => {
+  try {
+    const cfg = await api('/config');
+    if (cfg.lang && STRINGS[cfg.lang]) currentLang = cfg.lang;
+  } catch(e) {}
+  applyI18n();
+  loadStats();
+  loadConversations();
+})();
 </script>
 </body>
 </html>
