@@ -30,26 +30,34 @@ tailwind.config = {
 ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
 </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen antialiased">
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 min-h-screen antialiased transition-colors">
 
 <div class="max-w-6xl mx-auto px-5 py-6">
   <!-- Header -->
   <header class="flex items-center gap-3 mb-6">
     <h1 class="text-xl font-semibold tracking-tight">AIChatLog</h1>
-    <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 uppercase tracking-wider">Server</span>
+    <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 uppercase tracking-wider">Server</span>
     <div class="flex-1"></div>
     <div class="flex gap-1" id="langSwitch">
-      <button type="button" onclick="setLang('en')" class="lang-btn px-2.5 py-1 text-xs rounded border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500 transition-colors">EN</button>
-      <button type="button" onclick="setLang('zh-CN')" class="lang-btn px-2.5 py-1 text-xs rounded border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500 transition-colors">中文</button>
-      <button type="button" onclick="setLang('zh-TW')" class="lang-btn px-2.5 py-1 text-xs rounded border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500 transition-colors">繁中</button>
+      <button type="button" onclick="setLang('en')" class="lang-btn px-2.5 py-1 text-xs rounded border border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:border-slate-400 dark:hover:border-slate-500 transition-colors">EN</button>
+      <button type="button" onclick="setLang('zh-CN')" class="lang-btn px-2.5 py-1 text-xs rounded border border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:border-slate-400 dark:hover:border-slate-500 transition-colors">中文</button>
+      <button type="button" onclick="setLang('zh-TW')" class="lang-btn px-2.5 py-1 text-xs rounded border border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:border-slate-400 dark:hover:border-slate-500 transition-colors">繁中</button>
     </div>
-    <button onclick="toggleTheme()" class="p-2 rounded-lg border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500 transition-colors">
-      <i data-lucide="sun" class="w-4 h-4"></i>
-    </button>
+    <div class="flex gap-1" id="themeSwitch">
+      <button type="button" onclick="setTheme('auto')" class="theme-btn p-1.5 rounded border border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:border-slate-400 dark:hover:border-slate-500 transition-colors" title="Auto">
+        <i data-lucide="monitor" class="w-3.5 h-3.5"></i>
+      </button>
+      <button type="button" onclick="setTheme('light')" class="theme-btn p-1.5 rounded border border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:border-slate-400 dark:hover:border-slate-500 transition-colors" title="Light">
+        <i data-lucide="sun" class="w-3.5 h-3.5"></i>
+      </button>
+      <button type="button" onclick="setTheme('dark')" class="theme-btn p-1.5 rounded border border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:border-slate-400 dark:hover:border-slate-500 transition-colors" title="Dark">
+        <i data-lucide="moon" class="w-3.5 h-3.5"></i>
+      </button>
+    </div>
   </header>
 
   <!-- Tabs -->
-  <nav class="flex gap-1 mb-6 border-b border-slate-800 pb-2">
+  <nav class="flex gap-1 mb-6 border-b border-slate-200 dark:border-slate-800 pb-2">
     <button type="button" class="tab-btn flex items-center gap-2 px-4 py-2 text-sm rounded-t-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors" onclick="switchTab('conversations')" data-i18n="conversations">
       <i data-lucide="message-square" class="w-4 h-4"></i> Conversations
     </button>
@@ -72,7 +80,7 @@ tailwind.config = {
       <div class="flex-1 relative">
         <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"></i>
         <input type="text" id="searchInput" data-i18n-placeholder="search" placeholder="Search conversations..."
-          class="w-full pl-10 pr-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-200 text-sm placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+          class="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-200 text-sm placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
           oninput="onSearch()">
       </div>
       <div class="flex gap-1" id="filterTabs">
@@ -83,7 +91,7 @@ tailwind.config = {
       </div>
     </div>
 
-    <div class="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
+    <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
       <table class="w-full">
         <thead>
           <tr class="border-b border-slate-800">
@@ -129,7 +137,7 @@ tailwind.config = {
 
 <!-- Modal -->
 <div class="modal-overlay fixed inset-0 bg-black/60 z-50 justify-center items-start pt-10 px-5 overflow-y-auto" id="modal" onclick="if(event.target===this)closeModal()">
-  <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full max-h-[calc(100vh-80px)] overflow-y-auto shadow-2xl">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-3xl w-full max-h-[calc(100vh-80px)] overflow-y-auto shadow-2xl">
     <div class="flex justify-between items-center px-6 py-4 border-b border-slate-800">
       <h2 id="modalTitle" class="text-base font-semibold truncate"></h2>
       <button onclick="closeModal()" class="text-slate-500 hover:text-slate-200 text-xl transition-colors">&times;</button>
@@ -240,9 +248,29 @@ function updateLangButtons() {
     b.classList.toggle('!text-blue-400', l === currentLang);
   });
 }
-function toggleTheme() {
-  document.documentElement.classList.toggle('dark');
+let currentTheme = 'auto';
+function setTheme(mode) {
+  currentTheme = mode;
+  localStorage.setItem('aichatlog-theme', mode);
+  applyTheme();
+  updateThemeButtons();
 }
+function applyTheme() {
+  const isDark = currentTheme === 'dark' || (currentTheme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.classList.toggle('dark', isDark);
+}
+function updateThemeButtons() {
+  const modes = ['auto', 'light', 'dark'];
+  document.querySelectorAll('.theme-btn').forEach((b, i) => {
+    const active = modes[i] === currentTheme;
+    b.classList.toggle('!border-blue-500', active);
+    b.classList.toggle('!text-blue-400', active);
+  });
+}
+// Listen for system theme changes (for auto mode)
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  if (currentTheme === 'auto') applyTheme();
+});
 
 // ── State ──
 const PAGE_SIZE = 50;
@@ -479,7 +507,7 @@ async function showDetail(id) {
   actions.className = 'px-6 py-3 border-t border-slate-800 flex gap-2';
   const mkAction = (text, icon, cls, fn) => {
     const b = document.createElement('button');
-    b.className = 'flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-colors ' + (cls || 'border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500');
+    b.className = 'flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-colors ' + (cls || 'border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:border-slate-400 dark:hover:border-slate-500');
     b.innerHTML = `<i data-lucide="${icon}" class="w-3.5 h-3.5"></i> ${text}`;
     b.onclick = fn;
     return b;
@@ -617,8 +645,9 @@ function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.
 // ── Init ──
 (async () => {
   try { const cfg = await api('/config'); if (cfg.lang && STRINGS[cfg.lang]) currentLang = cfg.lang; } catch(e) {}
-  // Auto dark mode
-  if (window.matchMedia('(prefers-color-scheme: light)').matches) document.documentElement.classList.remove('dark');
+  // Theme: load from localStorage, default auto
+  currentTheme = localStorage.getItem('aichatlog-theme') || 'auto';
+  applyTheme(); updateThemeButtons();
   applyI18n(); updateLangButtons(); switchTab('conversations'); loadStats(); loadConversations();
   lucide.createIcons();
 })();
