@@ -1,13 +1,10 @@
 services:
   aichatlog-server:
-    build: .
+    image: ghcr.io/aichatlog/aichatlog/server:latest
     ports:
-      - "8080:8080"
+      - "4180:4180"
     volumes:
-      - aichatlog-data:/app/data
+      - ./data:/app/data
     environment:
       - AICHATLOG_TOKEN=${AICHATLOG_TOKEN:-}
     restart: unless-stopped
-
-volumes:
-  aichatlog-data:
