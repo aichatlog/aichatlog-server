@@ -304,6 +304,22 @@ const STRINGS = {
     load_more:'Load More', no_timeline:'No conversations yet.', turn:'Turn',
     by_conversation:'By Conversation', by_turn:'By Q&A',
     model_upgrade_threshold:'Upgrade model (words)', max_monthly_budget:'Monthly limit (0=∞)',
+    // Auth
+    setup_title:'Create Admin Account', login_title:'Login',
+    username:'Username', password:'Password', create_account:'Create Account', login:'Login',
+    logout:'Logout', logging_in:'Logging in...', creating:'Creating...',
+    login_failed:'Invalid username or password', setup_failed:'Setup failed',
+    password_hint:'At least 6 characters',
+    // API Keys
+    api_keys:'API Keys', create_key:'Create Key', key_name:'Key Name',
+    key_name_hint:'e.g. Claude Code MacBook', copy_key:'Copy', key_copied:'Copied!',
+    key_warning:'This key will only be shown once. Please copy it now.',
+    revoke:'Revoke', confirm_revoke:'Revoke this API key?',
+    no_keys:'No API keys yet. Create one for your plugins.',
+    last_used:'Last used', never:'Never', key_created:'Key created',
+    // Users
+    users:'Users', invite_user:'Invite User', role:'Role',
+    confirm_delete_user:'Delete this user?', cannot_delete_self:'Cannot delete yourself',
   },
   'zh-CN': {
     conversations:'对话', knowledge:'知识库', timeline:'时间线', settings:'设置',
@@ -331,6 +347,19 @@ const STRINGS = {
     load_more:'加载更多', no_timeline:'暂无对话。', turn:'轮次',
     by_conversation:'按对话', by_turn:'按问答对',
     model_upgrade_threshold:'升级模型 (字数)', max_monthly_budget:'月提取上限 (0=不限)',
+    setup_title:'创建管理员账户', login_title:'登录',
+    username:'用户名', password:'密码', create_account:'创建账户', login:'登录',
+    logout:'退出登录', logging_in:'登录中...', creating:'创建中...',
+    login_failed:'用户名或密码错误', setup_failed:'创建失败',
+    password_hint:'至少 6 个字符',
+    api_keys:'API 密钥', create_key:'创建密钥', key_name:'密钥名称',
+    key_name_hint:'例如：Claude Code MacBook', copy_key:'复制', key_copied:'已复制！',
+    key_warning:'此密钥仅显示一次，请立即复制。',
+    revoke:'撤销', confirm_revoke:'确定撤销此密钥？',
+    no_keys:'暂无 API 密钥。为插件创建一个。',
+    last_used:'最后使用', never:'从未', key_created:'密钥已创建',
+    users:'用户管理', invite_user:'邀请用户', role:'角色',
+    confirm_delete_user:'确定删除此用户？', cannot_delete_self:'不能删除自己',
   },
   'zh-TW': {
     conversations:'對話', knowledge:'知識庫', timeline:'時間線', settings:'設定',
@@ -358,6 +387,19 @@ const STRINGS = {
     load_more:'載入更多', no_timeline:'暫無對話。', turn:'輪次',
     by_conversation:'按對話', by_turn:'按問答對',
     model_upgrade_threshold:'升級模型 (字數)', max_monthly_budget:'月擷取上限 (0=不限)',
+    setup_title:'建立管理員帳號', login_title:'登入',
+    username:'使用者名稱', password:'密碼', create_account:'建立帳號', login:'登入',
+    logout:'登出', logging_in:'登入中...', creating:'建立中...',
+    login_failed:'使用者名稱或密碼錯誤', setup_failed:'建立失敗',
+    password_hint:'至少 6 個字元',
+    api_keys:'API 金鑰', create_key:'建立金鑰', key_name:'金鑰名稱',
+    key_name_hint:'例如：Claude Code MacBook', copy_key:'複製', key_copied:'已複製！',
+    key_warning:'此金鑰僅顯示一次，請立即複製。',
+    revoke:'撤銷', confirm_revoke:'確定撤銷此金鑰？',
+    no_keys:'暫無 API 金鑰。為外掛建立一個。',
+    last_used:'最後使用', never:'從未', key_created:'金鑰已建立',
+    users:'使用者管理', invite_user:'邀請使用者', role:'角色',
+    confirm_delete_user:'確定刪除此使用者？', cannot_delete_self:'不能刪除自己',
   },
 };
 let currentLang = 'en';
@@ -409,6 +451,13 @@ const C = {
   empty: 'text-center py-16 text-gray-400 dark:text-slate-500',
   section: 'bg-gray-50 dark:bg-slate-800/30 border border-gray-200 dark:border-slate-800 rounded-xl p-5 mb-4',
   code: 'bg-gray-900 dark:bg-slate-950 text-gray-300 dark:text-slate-300 border border-gray-800 dark:border-slate-800',
+  // Shared component tokens
+  cardBorder: 'border-gray-200 dark:border-slate-700/50',
+  cardBg: 'bg-white dark:bg-slate-800/50',
+  text: 'text-gray-900 dark:text-slate-200',
+  textMuted: 'text-gray-500 dark:text-slate-400',
+  inputBorder: 'border-gray-300 dark:border-slate-600',
+  inputBg: 'bg-white dark:bg-slate-800',
 };
 const statusColor = s => ({received:'amber',synced:'emerald',failed:'red',ignored:'slate'}[s]||'slate');
 
@@ -563,7 +612,7 @@ function renderMsg(m,parent,md){
   hd.className='flex items-center gap-2 mb-1 text-[11px] '+(isU?'justify-end text-blue-500':'text-emerald-500');
   hd.textContent=isU?'User':'Assistant';
   if(m.timestamp){const ts=document.createElement('span');ts.className=C.text3;ts.textContent=(m.timestamp||'').replace('T',' ').slice(11,19);hd.appendChild(ts);}
-  if(!isU&&m.model){const ms2=document.createElement('span');ms2.className=C.text4;ms2.textContent=m.model.replace('claude-','').replace(/-2025\d+/,'');hd.appendChild(ms2);}
+  if(!isU&&m.model){const ms2=document.createElement('span');ms2.className=C.cardBorder;ms2.textContent=m.model.replace('claude-','').replace(/-2025\d+/,'');hd.appendChild(ms2);}
   div.appendChild(hd);
   const bubble=document.createElement('div');
   bubble.className=isU
@@ -571,7 +620,7 @@ function renderMsg(m,parent,md){
     :'rounded-2xl rounded-bl-sm px-4 py-3 bg-gray-100 dark:bg-slate-800 text-gray-900 dark:text-slate-200 text-sm leading-relaxed border border-gray-200 dark:border-slate-700/50';
   AIChatLogUI.renderContent(bubble,m.content,md);
   div.appendChild(bubble);
-  if(!isU&&(m.input_tokens||m.output_tokens)){const tk=document.createElement('div');tk.className='text-[10px] '+C.text4+' mt-1 flex items-center gap-1';tk.textContent=`${(m.input_tokens/1000).toFixed(1)}k in / ${(m.output_tokens/1000).toFixed(1)}k out`;div.appendChild(tk);}
+  if(!isU&&(m.input_tokens||m.output_tokens)){const tk=document.createElement('div');tk.className='text-[10px] '+C.cardBorder+' mt-1 flex items-center gap-1';tk.textContent=`${(m.input_tokens/1000).toFixed(1)}k in / ${(m.output_tokens/1000).toFixed(1)}k out`;div.appendChild(tk);}
   parent.appendChild(div);
 }
 
@@ -602,7 +651,7 @@ async function showDetail(id,scrollToTurn) {
     const card=document.createElement('div');
     card.className='rounded-xl border border-gray-200 dark:border-slate-700/50 p-4 space-y-3';
     card.id='turn-'+i;
-    const label=document.createElement('div');label.className='text-[10px] font-mono '+C.text4+' mb-2';label.textContent='Turn #'+(i+1);
+    const label=document.createElement('div');label.className='text-[10px] font-mono '+C.cardBorder+' mb-2';label.textContent='Turn #'+(i+1);
     card.appendChild(label);
     turn.user.forEach(m=>renderMsg(m,card,md));
     turn.assistant.forEach(m=>renderMsg(m,card,md));
@@ -645,7 +694,7 @@ async function loadKnowledge() {
   const tc={tech_solution:'emerald',concept:'amber',prompt:'blue',work_log:'slate'};
   exts.forEach(e=>{const c2=tc[e.type]||'slate';const card=document.createElement('div');
     card.className=C.section.replace('p-5','p-4').replace('mb-4','mb-3')+' '+C.cardHover;
-    card.innerHTML=`<span class="text-[10px] font-mono px-2 py-0.5 rounded bg-${c2}-50 dark:bg-${c2}-500/10 text-${c2}-600 dark:text-${c2}-400 mb-2 inline-block">${e.type.replace('_',' ')}</span><div class="font-semibold text-sm ${C.text1} mb-1">${esc(e.title)}</div><div class="text-xs ${C.text2} leading-relaxed whitespace-pre-wrap">${esc(e.content.slice(0,500))}${e.content.length>500?'...':''}</div><div class="text-[10px] ${C.text4} mt-2">${(e.extracted_at||'').slice(0,10)}${e.model_used?' · '+e.model_used:''}</div>`;
+    card.innerHTML=`<span class="text-[10px] font-mono px-2 py-0.5 rounded bg-${c2}-50 dark:bg-${c2}-500/10 text-${c2}-600 dark:text-${c2}-400 mb-2 inline-block">${e.type.replace('_',' ')}</span><div class="font-semibold text-sm ${C.text1} mb-1">${esc(e.title)}</div><div class="text-xs ${C.text2} leading-relaxed whitespace-pre-wrap">${esc(e.content.slice(0,500))}${e.content.length>500?'...':''}</div><div class="text-[10px] ${C.cardBorder} mt-2">${(e.extracted_at||'').slice(0,10)}${e.model_used?' · '+e.model_used:''}</div>`;
     container.appendChild(card);});
 }
 let tlOffset=0,tlCache={},tlMode='conv',ttOffset=0;
@@ -704,7 +753,7 @@ async function loadTimeline(append) {
       const time=(c.started_at||'').replace('T',' ').slice(11,16);if(time)addC(time);
       addC(c.message_count+' msgs');addC((c.word_count/1000).toFixed(1)+'k words');
       left.append(title,chips);
-      const arrow=document.createElement('span');arrow.className='text-xs '+C.text4+' mt-1 shrink-0 transition-transform';arrow.textContent='▸';
+      const arrow=document.createElement('span');arrow.className='text-xs '+C.cardBorder+' mt-1 shrink-0 transition-transform';arrow.textContent='▸';
       hdr.append(left,arrow);card.appendChild(hdr);
       // Body (hidden initially)
       const body=document.createElement('div');body.className='hidden';body.id='tl-body-'+c.id;
@@ -731,21 +780,21 @@ async function loadTimeline(append) {
 async function expandTimelineConv(convId,body){
   if(body.dataset.loaded)return;body.dataset.loaded='1';
   // Loading indicator
-  const loading=document.createElement('div');loading.className='px-4 py-3 text-xs '+C.text4;loading.textContent='Loading...';
+  const loading=document.createElement('div');loading.className='px-4 py-3 text-xs '+C.cardBorder;loading.textContent='Loading...';
   body.appendChild(loading);
   // Fetch
   let data=tlCache[convId];
   if(!data){data=await api('/conversations/'+encodeURIComponent(convId)+'?full=true');tlCache[convId]=data;}
   body.removeChild(loading);
   const turns=msgsToTurns(data.messages);
-  if(!turns.length){const empty=document.createElement('div');empty.className='px-4 py-3 text-xs '+C.text4;empty.textContent='No messages';body.appendChild(empty);return;}
+  if(!turns.length){const empty=document.createElement('div');empty.className='px-4 py-3 text-xs '+C.cardBorder;empty.textContent='No messages';body.appendChild(empty);return;}
   const md=AIChatLogUI.initMarkdown();
   const list=document.createElement('div');list.className='divide-y divide-gray-100 dark:divide-slate-700/50';
   turns.forEach((turn,i)=>{
     const row=document.createElement('div');row.className='px-4 py-2.5';
     // Turn header (collapsed summary)
     const summary=document.createElement('div');summary.className='flex items-start gap-2 cursor-pointer text-xs';
-    const tArrow=document.createElement('span');tArrow.className=C.text4+' shrink-0 mt-0.5';tArrow.textContent='▸';
+    const tArrow=document.createElement('span');tArrow.className=C.cardBorder+' shrink-0 mt-0.5';tArrow.textContent='▸';
     const tLabel=document.createElement('span');tLabel.className='font-mono text-blue-500 shrink-0 mt-0.5';tLabel.textContent=t('turn')+' '+(i+1);
     const tSnip=document.createElement('span');tSnip.className=C.text2+' truncate';
     const qSnip=(turn.user[0]?.content||'').slice(0,60).replace(/\n/g,' ');
@@ -799,7 +848,7 @@ async function loadTimelineTurns(append) {
       const card=document.createElement('div');card.className='rounded-xl border border-gray-200 dark:border-slate-700/50 bg-white dark:bg-slate-800/50 overflow-hidden';
       // Header
       const hdr=document.createElement('div');hdr.className='px-4 py-2.5 flex items-center gap-2 cursor-pointer';
-      const arrow=document.createElement('span');arrow.className='text-xs '+C.text4+' shrink-0';arrow.textContent='▸';
+      const arrow=document.createElement('span');arrow.className='text-xs '+C.cardBorder+' shrink-0';arrow.textContent='▸';
       const time=document.createElement('span');time.className='font-mono text-[11px] '+C.text3;time.textContent=(tr.timestamp||'').slice(11,16);
       const proj=document.createElement('span');proj.className='px-1.5 py-0.5 rounded text-[10px] bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400';proj.textContent=tr.project||'—';
       const ttl=document.createElement('span');ttl.className='text-xs '+C.text2+' truncate';ttl.textContent=tr.title||'Untitled';
@@ -945,16 +994,334 @@ async function loadSettings() {
   };
   const stMsg=document.createElement('span');stMsg.className='text-xs self-center ml-2';
   br.append(svB,stMsg);f.appendChild(br);
+
+  // API Keys section
+  const keysDiv = document.createElement('div');
+  keysDiv.className = 'mt-6 pt-6 border-t ' + C.cardBorder;
+  f.appendChild(keysDiv);
+  renderAPIKeys(keysDiv);
+
+  // Users section (admin only)
+  if (currentUser && currentUser.role === 'admin') {
+    const usersDiv = document.createElement('div');
+    usersDiv.className = 'mt-6 pt-6 border-t ' + C.cardBorder;
+    f.appendChild(usersDiv);
+    renderUsers(usersDiv);
+  }
+
   lucide.createIcons();
 }
 
-// ── Init ──
-(async()=>{
+// ── Auth Overlay ──
+let currentUser = null;
+
+function showAuthOverlay(mode) {
+  // mode: 'setup' or 'login'
+  let overlay = document.getElementById('authOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'authOverlay';
+    overlay.className = 'fixed inset-0 z-[9999] flex items-center justify-center bg-gray-950/80 backdrop-blur-sm';
+    document.body.appendChild(overlay);
+  }
+  const isSetup = mode === 'setup';
+  overlay.innerHTML = `
+    <div class="w-full max-w-sm mx-4 rounded-2xl border ${C.cardBorder} ${C.cardBg} p-8 shadow-2xl">
+      <div class="text-center mb-6">
+        <div class="inline-flex items-center gap-2 mb-2"><i data-lucide="brain-circuit" class="w-8 h-8 text-blue-500"></i></div>
+        <h2 class="text-xl font-bold ${C.text}">${t(isSetup?'setup_title':'login_title')}</h2>
+      </div>
+      <form id="authForm" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium ${C.textMuted} mb-1">${t('username')}</label>
+          <input id="authUser" type="text" required autocomplete="username"
+            class="w-full px-3 py-2 rounded-lg border ${C.inputBorder} ${C.inputBg} ${C.text} focus:outline-none focus:ring-2 focus:ring-blue-500/50">
+        </div>
+        <div>
+          <label class="block text-sm font-medium ${C.textMuted} mb-1">${t('password')}</label>
+          <input id="authPass" type="password" required autocomplete="${isSetup?'new-password':'current-password'}" minlength="6"
+            class="w-full px-3 py-2 rounded-lg border ${C.inputBorder} ${C.inputBg} ${C.text} focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+            placeholder="${t('password_hint')}">
+        </div>
+        <div id="authError" class="text-sm text-red-500 hidden"></div>
+        <button type="submit" id="authBtn"
+          class="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors">
+          ${t(isSetup?'create_account':'login')}
+        </button>
+      </form>
+    </div>`;
+  lucide.createIcons({attrs:{class:'w-8 h-8'}});
+  const form = document.getElementById('authForm');
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('authBtn');
+    const errEl = document.getElementById('authError');
+    errEl.classList.add('hidden');
+    btn.disabled = true;
+    btn.textContent = t(isSetup?'creating':'logging_in');
+    try {
+      const body = JSON.stringify({
+        username: document.getElementById('authUser').value,
+        password: document.getElementById('authPass').value,
+      });
+      const res = await fetch('/api/auth/' + (isSetup?'setup':'login'), {
+        method:'POST', headers:{'Content-Type':'application/json'}, body
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        errEl.textContent = data.error || t(isSetup?'setup_failed':'login_failed');
+        errEl.classList.remove('hidden');
+        btn.disabled = false;
+        btn.textContent = t(isSetup?'create_account':'login');
+        return;
+      }
+      currentUser = data.user;
+      overlay.remove();
+      initDashboard();
+    } catch(err) {
+      errEl.textContent = err.message;
+      errEl.classList.remove('hidden');
+      btn.disabled = false;
+      btn.textContent = t(isSetup?'create_account':'login');
+    }
+  };
+  document.getElementById('authUser').focus();
+}
+
+function addLogoutButton() {
+  if (!currentUser) return;
+  const nav = document.querySelector('nav') || document.querySelector('header');
+  if (!nav) return;
+  // Check if already exists
+  if (document.getElementById('logoutBtn')) return;
+  const btn = document.createElement('button');
+  btn.id = 'logoutBtn';
+  btn.className = 'ml-2 px-3 py-1 text-xs rounded border ' + C.cardBorder + ' ' + C.textMuted + ' hover:text-red-500 hover:border-red-500/30 transition-colors';
+  btn.textContent = t('logout');
+  btn.onclick = async () => {
+    await fetch('/api/auth/logout', {method:'POST'});
+    location.reload();
+  };
+  // Find the lang/theme buttons area
+  const btnsArea = nav.querySelector('.flex.items-center.gap-1') || nav;
+  btnsArea.appendChild(btn);
+}
+
+async function initDashboard() {
   try{const cfg=await api('/config');if(cfg.lang&&STRINGS[cfg.lang])currentLang=cfg.lang;}catch(e){}
   currentTheme=localStorage.getItem('aichatlog-theme')||'auto';
   applyTheme(); updateThemeButtons(); applyI18n(); updateLangButtons();
   switchTab('conversations'); loadStats(); loadConversations();
+  addLogoutButton();
   lucide.createIcons();
+}
+
+// ── Settings: API Keys ──
+async function renderAPIKeys(container) {
+  const keys = await (await fetch('/api/keys')).json();
+  container.innerHTML = '';
+
+  // Header
+  const hdr = document.createElement('div');
+  hdr.className = 'flex items-center justify-between mb-3';
+  hdr.innerHTML = `<h3 class="text-base font-semibold ${C.text} flex items-center gap-2"><i data-lucide="key" class="w-4 h-4"></i>${t('api_keys')}</h3>`;
+  const createBtn = document.createElement('button');
+  createBtn.className = 'px-3 py-1 text-xs rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors';
+  createBtn.textContent = t('create_key');
+  createBtn.onclick = () => showCreateKeyDialog(container);
+  hdr.appendChild(createBtn);
+  container.appendChild(hdr);
+
+  if (!keys || keys.length === 0) {
+    container.innerHTML += `<p class="text-sm ${C.textMuted}">${t('no_keys')}</p>`;
+    lucide.createIcons();
+    return;
+  }
+
+  const table = document.createElement('div');
+  table.className = 'space-y-2';
+  for (const k of keys) {
+    const row = document.createElement('div');
+    row.className = `flex items-center justify-between p-3 rounded-lg border ${C.cardBorder} ${C.cardBg}`;
+    const lu = k.last_used ? new Date(k.last_used).toLocaleDateString() : t('never');
+    row.innerHTML = `
+      <div class="flex-1 min-w-0">
+        <div class="font-medium text-sm ${C.text}">${esc(k.name)}</div>
+        <div class="text-xs ${C.textMuted} font-mono">${esc(k.key_prefix)}...</div>
+      </div>
+      <div class="text-xs ${C.textMuted} mx-4">${t('last_used')}: ${lu}</div>`;
+    const delBtn = document.createElement('button');
+    delBtn.className = 'px-2 py-1 text-xs rounded border border-red-500/30 text-red-500 hover:bg-red-500/10 transition-colors';
+    delBtn.textContent = t('revoke');
+    delBtn.onclick = async () => {
+      if (!confirm(t('confirm_revoke'))) return;
+      await fetch('/api/keys/'+encodeURIComponent(k.id), {method:'DELETE'});
+      renderAPIKeys(container);
+    };
+    row.appendChild(delBtn);
+    table.appendChild(row);
+  }
+  container.appendChild(table);
+  lucide.createIcons();
+}
+
+function showCreateKeyDialog(parentContainer) {
+  const dlg = document.createElement('div');
+  dlg.className = `mt-3 p-4 rounded-lg border ${C.cardBorder} ${C.cardBg}`;
+  dlg.innerHTML = `
+    <div class="flex gap-2 items-end">
+      <div class="flex-1">
+        <label class="block text-xs font-medium ${C.textMuted} mb-1">${t('key_name')}</label>
+        <input id="newKeyName" type="text" placeholder="${t('key_name_hint')}"
+          class="w-full px-3 py-1.5 text-sm rounded-lg border ${C.inputBorder} ${C.inputBg} ${C.text} focus:outline-none focus:ring-2 focus:ring-blue-500/50">
+      </div>
+      <button id="newKeyBtn" class="px-4 py-1.5 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors">${t('create_key')}</button>
+      <button id="newKeyCancelBtn" class="px-3 py-1.5 text-sm rounded-lg border ${C.cardBorder} ${C.textMuted} hover:${C.text} transition-colors">✕</button>
+    </div>
+    <div id="newKeyResult" class="hidden mt-3"></div>`;
+  parentContainer.appendChild(dlg);
+  document.getElementById('newKeyCancelBtn').onclick = () => dlg.remove();
+  document.getElementById('newKeyBtn').onclick = async () => {
+    const name = document.getElementById('newKeyName').value.trim();
+    if (!name) return;
+    const res = await (await fetch('/api/keys', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({name})
+    })).json();
+    if (res.error) { alert(res.error); return; }
+    const result = document.getElementById('newKeyResult');
+    result.classList.remove('hidden');
+    result.innerHTML = `
+      <div class="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+        <div class="text-xs text-emerald-500 font-medium mb-1">✅ ${t('key_created')}</div>
+        <div class="flex items-center gap-2">
+          <code class="flex-1 text-sm font-mono ${C.text} bg-gray-900 px-2 py-1 rounded select-all break-all">${esc(res.key)}</code>
+          <button onclick="navigator.clipboard.writeText('${res.key}');this.textContent='${t('key_copied')}'" class="px-2 py-1 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 shrink-0">${t('copy_key')}</button>
+        </div>
+        <div class="text-xs text-amber-500 mt-2">⚠️ ${t('key_warning')}</div>
+      </div>`;
+    document.getElementById('newKeyBtn').disabled = true;
+    document.getElementById('newKeyName').disabled = true;
+  };
+  document.getElementById('newKeyName').focus();
+}
+
+// ── Settings: User Management ──
+async function renderUsers(container) {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  const users = await (await fetch('/api/users')).json();
+  container.innerHTML = '';
+
+  const hdr = document.createElement('div');
+  hdr.className = 'flex items-center justify-between mb-3';
+  hdr.innerHTML = `<h3 class="text-base font-semibold ${C.text} flex items-center gap-2"><i data-lucide="users" class="w-4 h-4"></i>${t('users')}</h3>`;
+  const invBtn = document.createElement('button');
+  invBtn.className = 'px-3 py-1 text-xs rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors';
+  invBtn.textContent = t('invite_user');
+  invBtn.onclick = () => showInviteDialog(container);
+  hdr.appendChild(invBtn);
+  container.appendChild(hdr);
+
+  if (!users || users.length === 0) {
+    lucide.createIcons();
+    return;
+  }
+
+  const table = document.createElement('div');
+  table.className = 'space-y-2';
+  for (const u of users) {
+    const row = document.createElement('div');
+    row.className = `flex items-center justify-between p-3 rounded-lg border ${C.cardBorder} ${C.cardBg}`;
+    row.innerHTML = `
+      <div class="flex-1 min-w-0">
+        <span class="font-medium text-sm ${C.text}">${esc(u.username)}</span>
+        <span class="ml-2 px-1.5 py-0.5 text-xs rounded ${u.role==='admin'?'bg-blue-500/20 text-blue-400':'bg-gray-500/20 text-gray-400'}">${u.role}</span>
+      </div>
+      <div class="text-xs ${C.textMuted}">${new Date(u.created_at).toLocaleDateString()}</div>`;
+    if (currentUser && u.id !== currentUser.id) {
+      const delBtn = document.createElement('button');
+      delBtn.className = 'ml-3 px-2 py-1 text-xs rounded border border-red-500/30 text-red-500 hover:bg-red-500/10 transition-colors';
+      delBtn.textContent = t('delete');
+      delBtn.onclick = async () => {
+        if (!confirm(t('confirm_delete_user'))) return;
+        await fetch('/api/users/'+encodeURIComponent(u.id), {method:'DELETE'});
+        renderUsers(container);
+      };
+      row.appendChild(delBtn);
+    }
+    table.appendChild(row);
+  }
+  container.appendChild(table);
+  lucide.createIcons();
+}
+
+function showInviteDialog(parentContainer) {
+  const dlg = document.createElement('div');
+  dlg.className = `mt-3 p-4 rounded-lg border ${C.cardBorder} ${C.cardBg}`;
+  dlg.innerHTML = `
+    <div class="flex gap-2 items-end">
+      <div class="flex-1">
+        <label class="block text-xs font-medium ${C.textMuted} mb-1">${t('username')}</label>
+        <input id="invUser" type="text" class="w-full px-3 py-1.5 text-sm rounded-lg border ${C.inputBorder} ${C.inputBg} ${C.text} focus:outline-none focus:ring-2 focus:ring-blue-500/50">
+      </div>
+      <div class="flex-1">
+        <label class="block text-xs font-medium ${C.textMuted} mb-1">${t('password')}</label>
+        <input id="invPass" type="text" placeholder="${t('password_hint')}" class="w-full px-3 py-1.5 text-sm rounded-lg border ${C.inputBorder} ${C.inputBg} ${C.text} focus:outline-none focus:ring-2 focus:ring-blue-500/50">
+      </div>
+      <div>
+        <label class="block text-xs font-medium ${C.textMuted} mb-1">${t('role')}</label>
+        <select id="invRole" class="px-3 py-1.5 text-sm rounded-lg border ${C.inputBorder} ${C.inputBg} ${C.text}">
+          <option value="user">user</option>
+          <option value="admin">admin</option>
+        </select>
+      </div>
+      <button id="invBtn" class="px-4 py-1.5 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors">${t('invite_user')}</button>
+      <button class="px-3 py-1.5 text-sm rounded-lg border ${C.cardBorder} ${C.textMuted}" onclick="this.closest('.p-4').remove()">✕</button>
+    </div>
+    <div id="invError" class="text-sm text-red-500 hidden mt-2"></div>`;
+  parentContainer.appendChild(dlg);
+  document.getElementById('invBtn').onclick = async () => {
+    const errEl = document.getElementById('invError');
+    errEl.classList.add('hidden');
+    const res = await (await fetch('/api/users', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        username: document.getElementById('invUser').value,
+        password: document.getElementById('invPass').value,
+        role: document.getElementById('invRole').value,
+      })
+    })).json();
+    if (res.error) { errEl.textContent = res.error; errEl.classList.remove('hidden'); return; }
+    dlg.remove();
+    renderUsers(parentContainer);
+  };
+  document.getElementById('invUser').focus();
+}
+
+// ── Init ──
+(async()=>{
+  // Check auth status first
+  try {
+    const auth = await (await fetch('/api/auth/status')).json();
+    // Try to load lang from config (may fail if not authenticated)
+    try{const cfg=await api('/config');if(cfg.lang&&STRINGS[cfg.lang])currentLang=cfg.lang;}catch(e){}
+    currentTheme=localStorage.getItem('aichatlog-theme')||'auto';
+    applyTheme(); updateThemeButtons(); applyI18n(); updateLangButtons();
+
+    if (auth.setup_required) {
+      showAuthOverlay('setup');
+      return;
+    }
+    if (!auth.authenticated) {
+      showAuthOverlay('login');
+      return;
+    }
+    currentUser = auth.user;
+    initDashboard();
+  } catch(e) {
+    // If auth endpoint fails (old server without auth), proceed normally
+    initDashboard();
+  }
 })();
 </script>
 </body>

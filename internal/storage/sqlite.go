@@ -1,18 +1,22 @@
 package storage
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
 	"os"
-	"sort"
 	"path/filepath"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // ── Data Types ──
@@ -96,6 +100,31 @@ type MessageRow struct {
 type ConversationDetail struct {
 	ConversationRow
 	Messages []MessageRow `json:"messages"`
+}
+
+// User represents a user account.
+type User struct {
+	ID        string `json:"id"`
+	Username  string `json:"username"`
+	Role      string `json:"role"`
+	CreatedAt string `json:"created_at"`
+}
+
+// APIKey represents an API key for programmatic access.
+type APIKey struct {
+	ID        string  `json:"id"`
+	UserID    string  `json:"user_id"`
+	Name      string  `json:"name"`
+	KeyPrefix string  `json:"key_prefix"`
+	LastUsed  *string `json:"last_used"`
+	CreatedAt string  `json:"created_at"`
+}
+
+// Session represents a web session.
+type Session struct {
+	ID        string
+	UserID    string
+	ExpiresAt time.Time
 }
 
 // QueryParams for listing conversations.
@@ -240,6 +269,7 @@ func (s *Store) migrate() error {
 		s.migrateV2,
 		s.migrateV3,
 		s.migrateV4,
+		s.migrateV5,
 	}
 
 	for i := current; i < len(migrations); i++ {
@@ -534,6 +564,41 @@ func (s *Store) migrateV4(tx *sql.Tx) error {
 		}
 	}
 	log.Printf("migrateV4: rebuilt FTS index for %d conversations", len(ids))
+	return nil
+}
+
+// migrateV5 adds user authentication tables.
+func (s *Store) migrateV5(tx *sql.Tx) error {
+	stmts := []string{
+		`CREATE TABLE IF NOT EXISTS users (
+			id         TEXT PRIMARY KEY,
+			username   TEXT NOT NULL UNIQUE,
+			password   TEXT NOT NULL,
+			role       TEXT NOT NULL DEFAULT 'admin',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS api_keys (
+			id         TEXT PRIMARY KEY,
+			user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			name       TEXT NOT NULL,
+			key_prefix TEXT NOT NULL,
+			key_hash   TEXT NOT NULL,
+			last_used  DATETIME,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS sessions (
+			id         TEXT PRIMARY KEY,
+			user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			expires_at DATETIME NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+	}
+	for _, stmt := range stmts {
+		if _, err := tx.Exec(stmt); err != nil {
+			return fmt.Errorf("migrateV5: %w", err)
+		}
+	}
+	log.Printf("migrateV5: created users, api_keys, sessions tables")
 	return nil
 }
 
@@ -1558,6 +1623,297 @@ func (s *Store) HasExtraction(conversationID string) (bool, error) {
 	var count int
 	err := s.db.QueryRow("SELECT COUNT(*) FROM extractions WHERE conversation_id = ?", conversationID).Scan(&count)
 	return count > 0, err
+}
+
+// ── Auth: Users ──
+
+// sessionCache provides in-memory session lookup to avoid DB hits on every request.
+var sessionCache = struct {
+	sync.RWMutex
+	m map[string]*Session
+}{m: make(map[string]*Session)}
+
+// HasAnyUser returns true if at least one user exists.
+func (s *Store) HasAnyUser() (bool, error) {
+	var count int
+	err := s.db.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
+	return count > 0, err
+}
+
+// CreateUser creates a new user with bcrypt-hashed password. Returns the user.
+func (s *Store) CreateUser(username, password, role string) (*User, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("hash password: %w", err)
+	}
+	id := "user_" + randomHex(8)
+	_, err = s.db.Exec(
+		"INSERT INTO users (id, username, password, role) VALUES (?, ?, ?, ?)",
+		id, username, string(hash), role,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create user: %w", err)
+	}
+	return &User{ID: id, Username: username, Role: role}, nil
+}
+
+// AuthenticateUser checks username + password. Returns user on success.
+func (s *Store) AuthenticateUser(username, password string) (*User, error) {
+	var u User
+	var hash string
+	err := s.db.QueryRow(
+		"SELECT id, username, password, role, created_at FROM users WHERE username = ?", username,
+	).Scan(&u.ID, &u.Username, &hash, &u.Role, &u.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("invalid credentials")
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)); err != nil {
+		return nil, fmt.Errorf("invalid credentials")
+	}
+	return &u, nil
+}
+
+// ListUsers returns all users (without passwords).
+func (s *Store) ListUsers() ([]User, error) {
+	rows, err := s.db.Query("SELECT id, username, role, created_at FROM users ORDER BY created_at")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var users []User
+	for rows.Next() {
+		var u User
+		if err := rows.Scan(&u.ID, &u.Username, &u.Role, &u.CreatedAt); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, nil
+}
+
+// DeleteUser deletes a user and cascades to sessions and api_keys.
+func (s *Store) DeleteUser(id string) error {
+	// Clean session cache
+	sessionCache.Lock()
+	for sid, sess := range sessionCache.m {
+		if sess.UserID == id {
+			delete(sessionCache.m, sid)
+		}
+	}
+	sessionCache.Unlock()
+
+	res, err := s.db.Exec("DELETE FROM users WHERE id = ?", id)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("user not found")
+	}
+	return nil
+}
+
+// GetUserByID returns a user by ID.
+func (s *Store) GetUserByID(id string) (*User, error) {
+	var u User
+	err := s.db.QueryRow(
+		"SELECT id, username, role, created_at FROM users WHERE id = ?", id,
+	).Scan(&u.ID, &u.Username, &u.Role, &u.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("user not found")
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+// ── Auth: Sessions ──
+
+// CreateSession creates a new session for a user. Returns session ID.
+func (s *Store) CreateSession(userID string) (string, error) {
+	sid := randomHex(32)
+	expiresAt := time.Now().Add(7 * 24 * time.Hour)
+	_, err := s.db.Exec(
+		"INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)",
+		sid, userID, expiresAt.UTC().Format(time.RFC3339),
+	)
+	if err != nil {
+		return "", err
+	}
+	sessionCache.Lock()
+	sessionCache.m[sid] = &Session{ID: sid, UserID: userID, ExpiresAt: expiresAt}
+	sessionCache.Unlock()
+	return sid, nil
+}
+
+// ValidateSession checks if a session is valid. Returns user on success.
+func (s *Store) ValidateSession(sid string) (*User, error) {
+	// Check cache first
+	sessionCache.RLock()
+	cached, ok := sessionCache.m[sid]
+	sessionCache.RUnlock()
+	if ok {
+		if time.Now().After(cached.ExpiresAt) {
+			s.DeleteSession(sid)
+			return nil, fmt.Errorf("session expired")
+		}
+		return s.GetUserByID(cached.UserID)
+	}
+
+	// Fallback to DB
+	var userID, expiresStr string
+	err := s.db.QueryRow(
+		"SELECT user_id, expires_at FROM sessions WHERE id = ?", sid,
+	).Scan(&userID, &expiresStr)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("invalid session")
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	expiresAt, err := time.Parse(time.RFC3339, expiresStr)
+	if err != nil {
+		expiresAt, _ = time.Parse("2006-01-02 15:04:05", expiresStr)
+	}
+	if time.Now().After(expiresAt) {
+		s.DeleteSession(sid)
+		return nil, fmt.Errorf("session expired")
+	}
+
+	// Populate cache
+	sessionCache.Lock()
+	sessionCache.m[sid] = &Session{ID: sid, UserID: userID, ExpiresAt: expiresAt}
+	sessionCache.Unlock()
+
+	return s.GetUserByID(userID)
+}
+
+// RefreshSession extends a session's expiry.
+func (s *Store) RefreshSession(sid string) {
+	newExpiry := time.Now().Add(7 * 24 * time.Hour)
+	s.db.Exec("UPDATE sessions SET expires_at = ? WHERE id = ?",
+		newExpiry.UTC().Format(time.RFC3339), sid)
+	sessionCache.Lock()
+	if sess, ok := sessionCache.m[sid]; ok {
+		sess.ExpiresAt = newExpiry
+	}
+	sessionCache.Unlock()
+}
+
+// DeleteSession removes a session.
+func (s *Store) DeleteSession(sid string) {
+	s.db.Exec("DELETE FROM sessions WHERE id = ?", sid)
+	sessionCache.Lock()
+	delete(sessionCache.m, sid)
+	sessionCache.Unlock()
+}
+
+// CleanExpiredSessions removes expired sessions from DB and cache.
+func (s *Store) CleanExpiredSessions() {
+	s.db.Exec("DELETE FROM sessions WHERE expires_at < ?", time.Now().UTC().Format(time.RFC3339))
+	sessionCache.Lock()
+	now := time.Now()
+	for sid, sess := range sessionCache.m {
+		if now.After(sess.ExpiresAt) {
+			delete(sessionCache.m, sid)
+		}
+	}
+	sessionCache.Unlock()
+}
+
+// ── Auth: API Keys ──
+
+// CreateAPIKey creates a new API key. Returns the full key (only shown once) and the APIKey record.
+func (s *Store) CreateAPIKey(userID, name string) (string, *APIKey, error) {
+	rawKey := "ak_" + randomHex(32)
+	keyHash := sha256Hex(rawKey)
+	keyPrefix := rawKey[:11] // "ak_" + 8 chars
+	id := "key_" + randomHex(8)
+
+	_, err := s.db.Exec(
+		"INSERT INTO api_keys (id, user_id, name, key_prefix, key_hash) VALUES (?, ?, ?, ?, ?)",
+		id, userID, name, keyPrefix, keyHash,
+	)
+	if err != nil {
+		return "", nil, fmt.Errorf("create api key: %w", err)
+	}
+	return rawKey, &APIKey{
+		ID: id, UserID: userID, Name: name, KeyPrefix: keyPrefix,
+	}, nil
+}
+
+// ValidateAPIKey checks a raw API key against stored hashes. Returns user on success.
+func (s *Store) ValidateAPIKey(rawKey string) (*User, error) {
+	keyHash := sha256Hex(rawKey)
+	var userID string
+	var keyID string
+	err := s.db.QueryRow(
+		"SELECT id, user_id FROM api_keys WHERE key_hash = ?", keyHash,
+	).Scan(&keyID, &userID)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("invalid api key")
+	}
+	if err != nil {
+		return nil, err
+	}
+	// Update last_used asynchronously
+	go func() {
+		s.db.Exec("UPDATE api_keys SET last_used = ? WHERE id = ?",
+			time.Now().UTC().Format(time.RFC3339), keyID)
+	}()
+	return s.GetUserByID(userID)
+}
+
+// ListAPIKeys returns all API keys for a user (without hashes).
+func (s *Store) ListAPIKeys(userID string) ([]APIKey, error) {
+	rows, err := s.db.Query(
+		"SELECT id, user_id, name, key_prefix, last_used, created_at FROM api_keys WHERE user_id = ? ORDER BY created_at DESC",
+		userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var keys []APIKey
+	for rows.Next() {
+		var k APIKey
+		if err := rows.Scan(&k.ID, &k.UserID, &k.Name, &k.KeyPrefix, &k.LastUsed, &k.CreatedAt); err != nil {
+			return nil, err
+		}
+		keys = append(keys, k)
+	}
+	return keys, nil
+}
+
+// DeleteAPIKey deletes an API key.
+func (s *Store) DeleteAPIKey(id, userID string) error {
+	res, err := s.db.Exec("DELETE FROM api_keys WHERE id = ? AND user_id = ?", id, userID)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("api key not found")
+	}
+	return nil
+}
+
+// ── Auth Helpers ──
+
+func randomHex(n int) string {
+	b := make([]byte, n)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+func sha256Hex(s string) string {
+	h := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(h[:])
 }
 
 // ── Helpers ──

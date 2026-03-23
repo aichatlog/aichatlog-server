@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -73,9 +74,34 @@ func NewHandler(store *storage.Store, token string, dashboardHTML []byte, favico
 	mux.HandleFunc("POST /api/llm/test", h.handleLLMTest)
 	mux.HandleFunc("POST /api/llm/models", h.handleLLMModels)
 
+	// Auth endpoints
+	mux.HandleFunc("GET /api/auth/status", h.handleAuthStatus)
+	mux.HandleFunc("POST /api/auth/setup", h.handleAuthSetup)
+	mux.HandleFunc("POST /api/auth/login", h.handleAuthLogin)
+	mux.HandleFunc("POST /api/auth/logout", h.handleAuthLogout)
+	mux.HandleFunc("GET /api/keys", h.handleListKeys)
+	mux.HandleFunc("POST /api/keys", h.handleCreateKey)
+	mux.HandleFunc("DELETE /api/keys/{id}", h.handleDeleteKey)
+	mux.HandleFunc("GET /api/users", h.handleListUsers)
+	mux.HandleFunc("POST /api/users", h.handleCreateUser)
+	mux.HandleFunc("DELETE /api/users/{id}", h.handleDeleteUser)
+
 	h.mux = mux
 	return h
 }
+
+// authWhitelist paths that never require authentication.
+var authWhitelist = map[string]bool{
+	"/api/health":      true,
+	"/api/auth/status": true,
+	"/api/auth/setup":  true,
+	"/api/auth/login":  true,
+}
+
+// contextKey is a custom type for request context keys.
+type contextKey string
+
+const ctxUser contextKey = "user"
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// CORS
@@ -89,15 +115,80 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Auth check
-	if h.token != "" && r.URL.Path != "/api/health" {
+	path := r.URL.Path
+
+	// Whitelist: always allow
+	if authWhitelist[path] || path == "/" || path == "/favicon.ico" {
+		h.mux.ServeHTTP(w, r)
+		return
+	}
+
+	// Check if user system is set up
+	hasUsers, _ := h.store.HasAnyUser()
+	if !hasUsers {
+		// No users yet: if legacy token is set, use that; otherwise allow all
+		if h.token == "" {
+			h.mux.ServeHTTP(w, r)
+			return
+		}
 		auth := r.Header.Get("Authorization")
-		if !strings.HasPrefix(auth, "Bearer ") || strings.TrimPrefix(auth, "Bearer ") != h.token {
-			jsonError(w, "Unauthorized", http.StatusUnauthorized)
+		if strings.HasPrefix(auth, "Bearer ") && strings.TrimPrefix(auth, "Bearer ") == h.token {
+			h.mux.ServeHTTP(w, r)
+			return
+		}
+		jsonError(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Try authenticate: Bearer token (API key or legacy token)
+	if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
+		key := strings.TrimPrefix(auth, "Bearer ")
+
+		// Legacy token fallback
+		if h.token != "" && key == h.token {
+			h.mux.ServeHTTP(w, r)
+			return
+		}
+
+		// API key
+		if user, err := h.store.ValidateAPIKey(key); err == nil {
+			ctx := r.Context()
+			r = r.WithContext(context.WithValue(ctx, ctxUser, user))
+			h.mux.ServeHTTP(w, r)
 			return
 		}
 	}
 
-	h.mux.ServeHTTP(w, r)
+	// Try authenticate: Session cookie
+	if cookie, err := r.Cookie("aichatlog_session"); err == nil {
+		if user, err := h.store.ValidateSession(cookie.Value); err == nil {
+			h.store.RefreshSession(cookie.Value)
+			ctx := r.Context()
+			r = r.WithContext(context.WithValue(ctx, ctxUser, user))
+			h.mux.ServeHTTP(w, r)
+			return
+		}
+	}
+
+	jsonError(w, "Unauthorized", http.StatusUnauthorized)
+}
+
+// getUser returns the authenticated user from request context, or nil.
+func getUser(r *http.Request) *storage.User {
+	if u, ok := r.Context().Value(ctxUser).(*storage.User); ok {
+		return u
+	}
+	return nil
+}
+
+// requireAdmin checks that the authenticated user has admin role.
+func requireAdmin(w http.ResponseWriter, r *http.Request) *storage.User {
+	u := getUser(r)
+	if u == nil || u.Role != "admin" {
+		jsonError(w, "Admin access required", http.StatusForbidden)
+		return nil
+	}
+	return u
 }
 
 func (h *Handler) handleDashboard(w http.ResponseWriter, r *http.Request) {
@@ -676,6 +767,244 @@ func (h *Handler) handleLLMModels(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jsonResponse(w, map[string]interface{}{"ok": true, "models": models})
+}
+
+// ── Auth Handlers ──
+
+func (h *Handler) handleAuthStatus(w http.ResponseWriter, r *http.Request) {
+	hasUsers, _ := h.store.HasAnyUser()
+	authenticated := false
+	var user *storage.User
+
+	// Check session cookie
+	if cookie, err := r.Cookie("aichatlog_session"); err == nil {
+		if u, err := h.store.ValidateSession(cookie.Value); err == nil {
+			authenticated = true
+			user = u
+		}
+	}
+
+	resp := map[string]interface{}{
+		"setup_required": !hasUsers,
+		"authenticated":  authenticated,
+	}
+	if user != nil {
+		resp["user"] = user
+	}
+	jsonResponse(w, resp)
+}
+
+func (h *Handler) handleAuthSetup(w http.ResponseWriter, r *http.Request) {
+	// Only allow if no users exist
+	hasUsers, _ := h.store.HasAnyUser()
+	if hasUsers {
+		jsonError(w, "Setup already completed", http.StatusConflict)
+		return
+	}
+
+	var req struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+	if req.Username == "" || len(req.Password) < 6 {
+		jsonError(w, "Username required, password must be at least 6 characters", http.StatusBadRequest)
+		return
+	}
+
+	user, err := h.store.CreateUser(req.Username, req.Password, "admin")
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Auto-login: create session
+	sid, err := h.store.CreateSession(user.ID)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     "aichatlog_session",
+		Value:    sid,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   7 * 24 * 3600,
+	})
+
+	jsonResponse(w, map[string]interface{}{"ok": true, "user": user})
+}
+
+func (h *Handler) handleAuthLogin(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	user, err := h.store.AuthenticateUser(req.Username, req.Password)
+	if err != nil {
+		jsonError(w, "Invalid username or password", http.StatusUnauthorized)
+		return
+	}
+
+	sid, err := h.store.CreateSession(user.ID)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     "aichatlog_session",
+		Value:    sid,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   7 * 24 * 3600,
+	})
+
+	jsonResponse(w, map[string]interface{}{"ok": true, "user": user})
+}
+
+func (h *Handler) handleAuthLogout(w http.ResponseWriter, r *http.Request) {
+	if cookie, err := r.Cookie("aichatlog_session"); err == nil {
+		h.store.DeleteSession(cookie.Value)
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     "aichatlog_session",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		MaxAge:   -1,
+	})
+	jsonResponse(w, map[string]interface{}{"ok": true})
+}
+
+// ── API Key Handlers ──
+
+func (h *Handler) handleListKeys(w http.ResponseWriter, r *http.Request) {
+	user := getUser(r)
+	if user == nil {
+		jsonError(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	keys, err := h.store.ListAPIKeys(user.ID)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if keys == nil {
+		keys = []storage.APIKey{}
+	}
+	jsonResponse(w, keys)
+}
+
+func (h *Handler) handleCreateKey(w http.ResponseWriter, r *http.Request) {
+	user := getUser(r)
+	if user == nil {
+		jsonError(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" {
+		jsonError(w, "Name is required", http.StatusBadRequest)
+		return
+	}
+
+	rawKey, keyInfo, err := h.store.CreateAPIKey(user.ID, req.Name)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	jsonResponse(w, map[string]interface{}{
+		"ok":  true,
+		"key": rawKey,
+		"info": keyInfo,
+	})
+}
+
+func (h *Handler) handleDeleteKey(w http.ResponseWriter, r *http.Request) {
+	user := getUser(r)
+	if user == nil {
+		jsonError(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	id := r.PathValue("id")
+	if err := h.store.DeleteAPIKey(id, user.ID); err != nil {
+		jsonError(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	jsonResponse(w, map[string]interface{}{"ok": true})
+}
+
+// ── User Management Handlers ──
+
+func (h *Handler) handleListUsers(w http.ResponseWriter, r *http.Request) {
+	if requireAdmin(w, r) == nil {
+		return
+	}
+	users, err := h.store.ListUsers()
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if users == nil {
+		users = []storage.User{}
+	}
+	jsonResponse(w, users)
+}
+
+func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
+	if requireAdmin(w, r) == nil {
+		return
+	}
+	var req struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+		Role     string `json:"role"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+	if req.Username == "" || len(req.Password) < 6 {
+		jsonError(w, "Username required, password must be at least 6 characters", http.StatusBadRequest)
+		return
+	}
+	if req.Role == "" {
+		req.Role = "user"
+	}
+	user, err := h.store.CreateUser(req.Username, req.Password, req.Role)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusConflict)
+		return
+	}
+	jsonResponse(w, map[string]interface{}{"ok": true, "user": user})
+}
+
+func (h *Handler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
+	admin := requireAdmin(w, r)
+	if admin == nil {
+		return
+	}
+	id := r.PathValue("id")
+	if id == admin.ID {
+		jsonError(w, "Cannot delete yourself", http.StatusBadRequest)
+		return
+	}
+	if err := h.store.DeleteUser(id); err != nil {
+		jsonError(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	jsonResponse(w, map[string]interface{}{"ok": true})
 }
 
 // Helper functions
