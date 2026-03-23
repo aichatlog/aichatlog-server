@@ -2,7 +2,7 @@ services:
   aichatlog-server:
     image: ghcr.io/aichatlog/aichatlog/server:latest
     ports:
-      - "4180:4180"
+      - "4180:8080"
     volumes:
       - ./data:/app/data
     environment:

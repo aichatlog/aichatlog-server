@@ -10,7 +10,7 @@ FROM alpine:3.20
 RUN apk add --no-cache ca-certificates
 WORKDIR /app
 COPY --from=builder /app/aichatlog-server .
-EXPOSE 4180
+EXPOSE 8080
 VOLUME ["/app/data"]
 ENTRYPOINT ["./aichatlog-server"]
-CMD ["--port", "4180", "--db", "/app/data/aichatlog.db", "--data", "/app/data/files"]
+CMD ["--db", "/app/data/aichatlog.db", "--data", "/app/data/files"]

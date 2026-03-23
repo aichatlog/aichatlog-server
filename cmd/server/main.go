@@ -29,7 +29,7 @@ func main() {
 		return
 	}
 
-	port := flag.Int("port", 4180, "server port")
+	port := flag.Int("port", 8080, "server port")
 	dbPath := flag.String("db", "aichatlog.db", "SQLite database path")
 	dataDir := flag.String("data", "data", "directory for storing files")
 	token := flag.String("token", "", "bearer token for authentication (optional)")
