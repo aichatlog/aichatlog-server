@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
+	"sort"
 	"path/filepath"
 	"strings"
 	"time"
@@ -237,6 +239,7 @@ func (s *Store) migrate() error {
 		s.migrateV1,
 		s.migrateV2,
 		s.migrateV3,
+		s.migrateV4,
 	}
 
 	for i := current; i < len(migrations); i++ {
@@ -490,6 +493,286 @@ func (s *Store) migrateV3(tx *sql.Tx) error {
 	return nil
 }
 
+// migrateV4 replaces conversations_fts with turn-level FTS5 indexing.
+func (s *Store) migrateV4(tx *sql.Tx) error {
+	stmts := []string{
+		"DROP TRIGGER IF EXISTS conversations_ai",
+		"DROP TRIGGER IF EXISTS conversations_au",
+		"DROP TRIGGER IF EXISTS conversations_ad",
+		"DROP TABLE IF EXISTS conversations_fts",
+		`CREATE VIRTUAL TABLE IF NOT EXISTS turns_fts USING fts5(
+			conversation_id UNINDEXED,
+			turn_seq UNINDEXED,
+			title UNINDEXED,
+			user_content,
+			assistant_content,
+			tokenize='unicode61 remove_diacritics 2'
+		)`,
+	}
+	for _, stmt := range stmts {
+		if _, err := tx.Exec(stmt); err != nil {
+			return fmt.Errorf("migrateV4: %w", err)
+		}
+	}
+
+	// Rebuild FTS for all existing conversations
+	rows, err := tx.Query("SELECT id FROM conversations WHERE status != 'deleted'")
+	if err != nil {
+		return fmt.Errorf("migrateV4 list convs: %w", err)
+	}
+	var ids []string
+	for rows.Next() {
+		var id string
+		rows.Scan(&id)
+		ids = append(ids, id)
+	}
+	rows.Close()
+
+	for _, id := range ids {
+		if err := s.rebuildTurnsFTSWithTx(tx, id); err != nil {
+			log.Printf("migrateV4: rebuild FTS for %s: %v", id, err)
+		}
+	}
+	log.Printf("migrateV4: rebuilt FTS index for %d conversations", len(ids))
+	return nil
+}
+
+// turnData represents a single Q&A turn for FTS indexing.
+type turnData struct {
+	UserContent      string
+	AssistantContent string
+}
+
+// groupIntoTurns groups messages into Q&A turns.
+// Each turn = consecutive user messages + following assistant messages.
+func groupIntoTurns(msgs []MessageRow) []turnData {
+	var turns []turnData
+	var cur *turnData
+
+	for _, m := range msgs {
+		if m.IsContext {
+			continue
+		}
+		switch m.Role {
+		case "user":
+			if cur != nil && (cur.UserContent != "" || cur.AssistantContent != "") {
+				turns = append(turns, *cur)
+			}
+			cur = &turnData{}
+			cur.UserContent = m.Content
+		case "assistant":
+			if cur == nil {
+				cur = &turnData{}
+			}
+			if cur.AssistantContent != "" {
+				cur.AssistantContent += "\n"
+			}
+			content := m.Content
+			if len(content) > 5000 {
+				content = content[:5000]
+			}
+			cur.AssistantContent += content
+		}
+	}
+	if cur != nil && (cur.UserContent != "" || cur.AssistantContent != "") {
+		turns = append(turns, *cur)
+	}
+	return turns
+}
+
+// rebuildTurnsFTS rebuilds FTS entries for a single conversation.
+func (s *Store) rebuildTurnsFTS(convID string) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return
+	}
+	defer tx.Rollback()
+	if err := s.rebuildTurnsFTSWithTx(tx, convID); err != nil {
+		log.Printf("rebuildTurnsFTS %s: %v", convID, err)
+		return
+	}
+	tx.Commit()
+}
+
+func (s *Store) rebuildTurnsFTSWithTx(tx *sql.Tx, convID string) error {
+	// Delete old entries
+	if _, err := tx.Exec("DELETE FROM turns_fts WHERE conversation_id = ?", convID); err != nil {
+		return err
+	}
+
+	// Get conversation title
+	var title string
+	tx.QueryRow("SELECT title FROM conversations WHERE id = ?", convID).Scan(&title)
+
+	// Get messages
+	rows, err := tx.Query(`
+		SELECT id, conversation_id, role, content, timestamp, seq, is_context,
+			model, input_tokens, output_tokens
+		FROM messages WHERE conversation_id = ? ORDER BY seq`, convID)
+	if err != nil {
+		return err
+	}
+	var msgs []MessageRow
+	for rows.Next() {
+		var m MessageRow
+		var isCtx int
+		if err := rows.Scan(&m.ID, &m.ConversationID, &m.Role, &m.Content,
+			&m.Timestamp, &m.Seq, &isCtx, &m.Model, &m.InputTokens, &m.OutputTokens); err != nil {
+			rows.Close()
+			return err
+		}
+		m.IsContext = isCtx != 0
+		msgs = append(msgs, m)
+	}
+	rows.Close()
+
+	turns := groupIntoTurns(msgs)
+	for i, t := range turns {
+		if _, err := tx.Exec(
+			"INSERT INTO turns_fts(conversation_id, turn_seq, title, user_content, assistant_content) VALUES(?,?,?,?,?)",
+			convID, i, title, t.UserContent, t.AssistantContent); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// TurnSnippet represents a matched turn in search results.
+type TurnSnippet struct {
+	TurnSeq    int    `json:"turn_seq"`
+	UserSnip   string `json:"user_snippet"`
+	AssistSnip string `json:"assistant_snippet"`
+}
+
+// SearchSnippets returns matching turn snippets grouped by conversation ID.
+func (s *Store) SearchSnippets(query string, limit int) map[string][]TurnSnippet {
+	if query == "" {
+		return nil
+	}
+	escaped := ftsEscape(query)
+	rows, err := s.db.Query(`
+		SELECT conversation_id, CAST(turn_seq AS INTEGER),
+			snippet(turns_fts, 3, '<mark>', '</mark>', '…', 30),
+			snippet(turns_fts, 4, '<mark>', '</mark>', '…', 30)
+		FROM turns_fts
+		WHERE turns_fts MATCH ?
+		ORDER BY rank
+		LIMIT ?
+	`, escaped, limit)
+	if err != nil {
+		log.Printf("SearchSnippets error: %v", err)
+		return nil
+	}
+	defer rows.Close()
+
+	result := make(map[string][]TurnSnippet)
+	for rows.Next() {
+		var convID string
+		var sn TurnSnippet
+		if err := rows.Scan(&convID, &sn.TurnSeq, &sn.UserSnip, &sn.AssistSnip); err != nil {
+			continue
+		}
+		result[convID] = append(result[convID], sn)
+	}
+	return result
+}
+
+// TurnRow represents a single Q&A turn with conversation context for timeline display.
+type TurnRow struct {
+	ConversationID string `json:"conversation_id"`
+	Title          string `json:"title"`
+	Project        string `json:"project"`
+	SourceType     string `json:"source_type"`
+	TurnSeq        int    `json:"turn_seq"`
+	UserContent    string `json:"user_content"`
+	AssistContent  string `json:"assistant_content"`
+	Timestamp      string `json:"timestamp"`
+}
+
+// ListTurns returns recent Q&A turns across all conversations, ordered by timestamp DESC.
+func (s *Store) ListTurns(limit, offset int) ([]TurnRow, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	// Get recent conversations with messages
+	convRows, err := s.db.Query(`
+		SELECT id, title, project, source_type FROM conversations
+		WHERE status != 'deleted'
+		ORDER BY started_at DESC
+		LIMIT 50
+	`)
+	if err != nil {
+		return nil, err
+	}
+	type convMeta struct {
+		ID, Title, Project, Source string
+	}
+	var convs []convMeta
+	for convRows.Next() {
+		var cm convMeta
+		convRows.Scan(&cm.ID, &cm.Title, &cm.Project, &cm.Source)
+		convs = append(convs, cm)
+	}
+	convRows.Close()
+
+	// For each conversation, get messages and group into turns
+	var allTurns []TurnRow
+	for _, cm := range convs {
+		msgs, err := s.GetMessages(cm.ID)
+		if err != nil {
+			continue
+		}
+		turns := groupIntoTurns(msgs)
+		for i, t := range turns {
+			// Find timestamp from first user message of this turn
+			ts := ""
+			for _, m := range msgs {
+				if m.IsContext {
+					continue
+				}
+				if m.Role == "user" && m.Content == t.UserContent {
+					ts = m.Timestamp
+					break
+				}
+			}
+			// Truncate content for API response
+			uc := t.UserContent
+			if len(uc) > 200 {
+				uc = uc[:200]
+			}
+			ac := t.AssistantContent
+			if len(ac) > 200 {
+				ac = ac[:200]
+			}
+			allTurns = append(allTurns, TurnRow{
+				ConversationID: cm.ID,
+				Title:          cm.Title,
+				Project:        cm.Project,
+				SourceType:     cm.Source,
+				TurnSeq:        i,
+				UserContent:    uc,
+				AssistContent:  ac,
+				Timestamp:      ts,
+			})
+		}
+	}
+
+	// Sort by timestamp DESC
+	sort.Slice(allTurns, func(i, j int) bool {
+		return allTurns[i].Timestamp > allTurns[j].Timestamp
+	})
+
+	// Apply offset and limit
+	if offset >= len(allTurns) {
+		return []TurnRow{}, nil
+	}
+	end := offset + limit
+	if end > len(allTurns) {
+		end = len(allTurns)
+	}
+	return allTurns[offset:end], nil
+}
+
 // ── Conversation Operations ──
 
 // generateID creates a deterministic conversation ID from source, device, and session_id.
@@ -616,7 +899,11 @@ func (s *Store) Upsert(conv *ConversationObject) error {
 		}
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	s.rebuildTurnsFTS(id)
+	return nil
 }
 
 // Sync handles the v2 conditional sync protocol.
@@ -775,7 +1062,11 @@ func (s *Store) applyDelta(req *SyncRequest, id string) error {
 		return fmt.Errorf("update conversation: %w", err)
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	s.rebuildTurnsFTS(id)
+	return nil
 }
 
 func boolToInt(b bool) int {
@@ -885,9 +1176,9 @@ func (s *Store) List(p QueryParams) ([]ConversationRow, error) {
 		args = append(args, p.Source)
 	}
 
-	// Full-text search via FTS5
+	// Full-text search via turns FTS5
 	if p.Query != "" {
-		conditions = append(conditions, "id IN (SELECT id FROM conversations_fts WHERE conversations_fts MATCH ?)")
+		conditions = append(conditions, "id IN (SELECT DISTINCT conversation_id FROM turns_fts WHERE turns_fts MATCH ?)")
 		args = append(args, ftsEscape(p.Query))
 	}
 
@@ -1053,7 +1344,11 @@ func (s *Store) RecordSync(conversationID, adapter, path, contentHash string) er
 // SoftDelete marks a conversation as deleted (soft delete).
 // The record remains in DB to prevent re-sync from plugin.
 func (s *Store) SoftDelete(id string) error {
-	return s.UpdateStatus(id, "deleted")
+	if err := s.UpdateStatus(id, "deleted"); err != nil {
+		return err
+	}
+	s.db.Exec("DELETE FROM turns_fts WHERE conversation_id = ?", id)
+	return nil
 }
 
 // UpdateFields updates specific conversation fields (title, project, status).
@@ -1257,14 +1552,15 @@ func (s *Store) HasExtraction(conversationID string) (bool, error) {
 
 // ── Helpers ──
 
-// ftsEscape escapes special FTS5 characters for safe MATCH queries.
+// ftsEscape escapes special FTS5 characters and adds prefix matching.
+// Each term matches exact OR prefix; multiple terms are AND-ed.
 func ftsEscape(q string) string {
-	// Wrap each term in double quotes to treat as literal
 	terms := strings.Fields(q)
 	for i, t := range terms {
-		terms[i] = `"` + strings.ReplaceAll(t, `"`, `""`) + `"`
+		t = strings.ReplaceAll(t, `"`, `""`)
+		terms[i] = `("` + t + `" OR "` + t + `"*)`
 	}
-	return strings.Join(terms, " ")
+	return strings.Join(terms, " AND ")
 }
 
 // ToJSON serializes a ConversationObject to JSON bytes.

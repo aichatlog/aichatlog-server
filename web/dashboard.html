@@ -299,6 +299,8 @@ const STRINGS = {
     base_url:'Base URL', big_model:'Big Model',
     test_connection:'Test', fetch_models:'Fetch Models',
     testing:'Testing...', connection_ok:'Connected!', connection_failed:'Failed',
+    load_more:'Load More', no_timeline:'No conversations yet.', turn:'Turn',
+    by_conversation:'By Conversation', by_turn:'By Q&A',
   },
   'zh-CN': {
     conversations:'对话', knowledge:'知识库', timeline:'时间线', settings:'设置',
@@ -323,6 +325,8 @@ const STRINGS = {
     base_url:'基础 URL', big_model:'大模型',
     test_connection:'测试连接', fetch_models:'获取模型',
     testing:'测试中...', connection_ok:'连接成功！', connection_failed:'连接失败',
+    load_more:'加载更多', no_timeline:'暂无对话。', turn:'轮次',
+    by_conversation:'按对话', by_turn:'按问答对',
   },
   'zh-TW': {
     conversations:'對話', knowledge:'知識庫', timeline:'時間線', settings:'設定',
@@ -347,6 +351,8 @@ const STRINGS = {
     base_url:'基礎 URL', big_model:'大模型',
     test_connection:'測試連線', fetch_models:'取得模型',
     testing:'測試中...', connection_ok:'連線成功！', connection_failed:'連線失敗',
+    load_more:'載入更多', no_timeline:'暫無對話。', turn:'輪次',
+    by_conversation:'按對話', by_turn:'按問答對',
   },
 };
 let currentLang = 'en';
@@ -454,6 +460,23 @@ async function loadConversations() {
       <td class="px-4 py-3 text-[10px] font-mono ${C.text3} text-center">${tok||'—'}</td>
       <td class="px-4 py-3"><span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-${sc}-50 dark:bg-${sc}-500/10 text-${sc}-600 dark:text-${sc}-400">${c.status}</span></td>`;
     tbody.appendChild(tr);
+    if(c.snippets&&c.snippets.length){
+      const sr=document.createElement('tr');sr.className=C.row+' cursor-pointer';sr.onclick=()=>showDetail(c.id,c.snippets[0].turn_seq);
+      const sd=document.createElement('td');sd.colSpan=10;sd.className='px-6 py-2';
+      const sw=document.createElement('div');sw.className='text-xs rounded-lg border border-blue-100 dark:border-blue-500/20 bg-blue-50/50 dark:bg-blue-500/5 px-3 py-2 space-y-1';
+      const sanitizeSnip=(s)=>DOMPurify.sanitize(s||'',{ALLOWED_TAGS:['mark']});
+      c.snippets.slice(0,2).forEach(sn=>{
+        const d=document.createElement('div');d.className='flex gap-2 items-start';
+        const q=document.createElement('span');q.className='font-mono text-blue-500 dark:text-blue-400 shrink-0';q.textContent='Q:';
+        const qt=document.createElement('span');qt.className=C.text2;qt.innerHTML=sanitizeSnip(sn.user_snippet);
+        d.append(q,qt);sw.appendChild(d);
+        if(sn.assistant_snippet){const d2=document.createElement('div');d2.className='flex gap-2 items-start';
+          const a=document.createElement('span');a.className='font-mono text-emerald-500 dark:text-emerald-400 shrink-0';a.textContent='A:';
+          const at=document.createElement('span');at.className=C.text2;at.innerHTML=sanitizeSnip(sn.assistant_snippet);
+          d2.append(a,at);sw.appendChild(d2);}
+      });
+      sd.appendChild(sw);sr.appendChild(sd);tbody.appendChild(sr);
+    }
   });
   const pag=document.getElementById('pagination'); pag.replaceChildren();
   const page=Math.floor(state.offset/PAGE_SIZE), hasNext=rows.length===PAGE_SIZE;
@@ -516,8 +539,39 @@ async function batchAction(action) {
   loadConversations();
 }
 
+// ── Shared: Turn grouping & message rendering ──
+function msgsToTurns(messages){
+  const msgs=(messages||[]).filter(m=>!m.is_context);
+  const turns=[];let cur=null;
+  msgs.forEach(m=>{
+    if(m.role==='user'){if(cur)turns.push(cur);cur={user:[],assistant:[]};cur.user.push(m);}
+    else if(m.role==='assistant'){if(!cur)cur={user:[],assistant:[]};cur.assistant.push(m);}
+  });
+  if(cur)turns.push(cur);
+  return turns;
+}
+function renderMsg(m,parent,md){
+  const isU=m.role==='user';
+  const div=document.createElement('div');
+  div.className='max-w-[85%] flex flex-col '+(isU?'self-end':'self-start');
+  const hd=document.createElement('div');
+  hd.className='flex items-center gap-2 mb-1 text-[11px] '+(isU?'justify-end text-blue-500':'text-emerald-500');
+  hd.textContent=isU?'User':'Assistant';
+  if(m.timestamp){const ts=document.createElement('span');ts.className=C.text3;ts.textContent=(m.timestamp||'').replace('T',' ').slice(11,19);hd.appendChild(ts);}
+  if(!isU&&m.model){const ms2=document.createElement('span');ms2.className=C.text4;ms2.textContent=m.model.replace('claude-','').replace(/-2025\d+/,'');hd.appendChild(ms2);}
+  div.appendChild(hd);
+  const bubble=document.createElement('div');
+  bubble.className=isU
+    ?'rounded-2xl rounded-br-sm px-4 py-3 bg-blue-500 text-white text-sm leading-relaxed'
+    :'rounded-2xl rounded-bl-sm px-4 py-3 bg-gray-100 dark:bg-slate-800 text-gray-900 dark:text-slate-200 text-sm leading-relaxed border border-gray-200 dark:border-slate-700/50';
+  AIChatLogUI.renderContent(bubble,m.content,md);
+  div.appendChild(bubble);
+  if(!isU&&(m.input_tokens||m.output_tokens)){const tk=document.createElement('div');tk.className='text-[10px] '+C.text4+' mt-1 flex items-center gap-1';tk.textContent=`${(m.input_tokens/1000).toFixed(1)}k in / ${(m.output_tokens/1000).toFixed(1)}k out`;div.appendChild(tk);}
+  parent.appendChild(div);
+}
+
 // ── Detail Modal ──
-async function showDetail(id) {
+async function showDetail(id,scrollToTurn) {
   const c = await api('/conversations/'+encodeURIComponent(id)+'?full=true');
   document.getElementById('modalTitle').textContent = c.title;
   const meta = document.getElementById('modalMeta');
@@ -531,29 +585,24 @@ async function showDetail(id) {
   addChip(tf('msgs_words',c.message_count,c.word_count));
   if(c.total_input_tokens||c.total_output_tokens)addChip(tf('tokens_in_out',c.total_input_tokens,c.total_output_tokens));
   const sc=statusColor(c.status); addChip(c.status,`bg-${sc}-50 dark:bg-${sc}-500/10 text-${sc}-600 dark:text-${sc}-400`);
-  if(c.metadata&&c.metadata!=='{}'){try{const md=typeof c.metadata==='string'?JSON.parse(c.metadata):c.metadata;Object.entries(md).forEach(([k,v])=>addChip(k+': '+v,'bg-gray-50 dark:bg-slate-800/50 '+C.text3));}catch(e){}}
+  if(c.metadata&&c.metadata!=='{}'){try{const md2=typeof c.metadata==='string'?JSON.parse(c.metadata):c.metadata;Object.entries(md2).forEach(([k,v])=>addChip(k+': '+v,'bg-gray-50 dark:bg-slate-800/50 '+C.text3));}catch(e){}}
 
   const container = document.getElementById('modalMessages');
   container.replaceChildren();
   const md = AIChatLogUI.initMarkdown();
-  (c.messages||[]).filter(m=>!m.is_context).forEach(m=>{
-    const isU=m.role==='user';
-    const div=document.createElement('div');
-    div.className='max-w-[85%] flex flex-col '+(isU?'self-end':'self-start');
-    const hd=document.createElement('div');
-    hd.className='flex items-center gap-2 mb-1 text-[11px] '+(isU?'justify-end text-blue-500':'text-emerald-500');
-    hd.textContent=isU?'User':'Assistant';
-    if(m.timestamp){const ts=document.createElement('span');ts.className=C.text3;ts.textContent=(m.timestamp||'').replace('T',' ').slice(11,19);hd.appendChild(ts);}
-    if(!isU&&m.model){const ms2=document.createElement('span');ms2.className=C.text4;ms2.textContent=m.model.replace('claude-','').replace(/-2025\d+/,'');hd.appendChild(ms2);}
-    div.appendChild(hd);
-    const bubble=document.createElement('div');
-    bubble.className=isU
-      ?'rounded-2xl rounded-br-sm px-4 py-3 bg-blue-500 text-white text-sm leading-relaxed'
-      :'rounded-2xl rounded-bl-sm px-4 py-3 bg-gray-100 dark:bg-slate-800 text-gray-900 dark:text-slate-200 text-sm leading-relaxed border border-gray-200 dark:border-slate-700/50';
-    AIChatLogUI.renderContent(bubble,m.content,md);
-    div.appendChild(bubble);
-    if(!isU&&(m.input_tokens||m.output_tokens)){const tk=document.createElement('div');tk.className='text-[10px] '+C.text4+' mt-1 flex items-center gap-1';tk.innerHTML=`<i data-lucide="coins" class="w-3 h-3"></i> ${(m.input_tokens/1000).toFixed(1)}k in / ${(m.output_tokens/1000).toFixed(1)}k out`;div.appendChild(tk);}
-    container.appendChild(div);
+  const turns = msgsToTurns(c.messages);
+
+  let scrollTarget=null;
+  turns.forEach((turn,i)=>{
+    const card=document.createElement('div');
+    card.className='rounded-xl border border-gray-200 dark:border-slate-700/50 p-4 space-y-3';
+    card.id='turn-'+i;
+    const label=document.createElement('div');label.className='text-[10px] font-mono '+C.text4+' mb-2';label.textContent='Turn #'+(i+1);
+    card.appendChild(label);
+    turn.user.forEach(m=>renderMsg(m,card,md));
+    turn.assistant.forEach(m=>renderMsg(m,card,md));
+    container.appendChild(card);
+    if(scrollToTurn!==undefined&&i===scrollToTurn)scrollTarget=card;
   });
   const actions=document.createElement('div');
   actions.className='px-6 py-3 border-t border-gray-200 dark:border-slate-800 flex gap-2';
@@ -570,6 +619,7 @@ async function showDetail(id) {
   container.after(actions);
   document.getElementById('modal').classList.add('open');
   lucide.createIcons();
+  if(scrollTarget)setTimeout(()=>{scrollTarget.scrollIntoView({behavior:'smooth',block:'center'});scrollTarget.classList.add('ring-2','ring-blue-400');setTimeout(()=>scrollTarget.classList.remove('ring-2','ring-blue-400'),2000);},100);
 }
 function closeModal(){document.getElementById('modal').classList.remove('open');}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
@@ -593,13 +643,201 @@ async function loadKnowledge() {
     card.innerHTML=`<span class="text-[10px] font-mono px-2 py-0.5 rounded bg-${c2}-50 dark:bg-${c2}-500/10 text-${c2}-600 dark:text-${c2}-400 mb-2 inline-block">${e.type.replace('_',' ')}</span><div class="font-semibold text-sm ${C.text1} mb-1">${esc(e.title)}</div><div class="text-xs ${C.text2} leading-relaxed whitespace-pre-wrap">${esc(e.content.slice(0,500))}${e.content.length>500?'...':''}</div><div class="text-[10px] ${C.text4} mt-2">${(e.extracted_at||'').slice(0,10)}${e.model_used?' · '+e.model_used:''}</div>`;
     container.appendChild(card);});
 }
-async function loadTimeline() {
-  const exts=await api('/extractions?type=work_log&limit=50');
-  const container=document.getElementById('timelineList'); container.replaceChildren();
-  if(!exts.length){container.innerHTML=`<div class="${C.empty}">${t('no_work_log')}</div>`;return;}
-  exts.forEach(e=>{const en=document.createElement('div');en.className='flex gap-4 py-3 border-b border-gray-100 dark:border-slate-800/50';
-    en.innerHTML=`<div class="font-mono text-[11px] ${C.text4} whitespace-nowrap min-w-[80px] pt-0.5">${(e.extracted_at||'').slice(0,10)}</div><div class="flex-1"><div class="font-semibold text-sm ${C.text1} mb-0.5">${esc(e.title)}</div><div class="text-xs ${C.text2}">${esc(e.content)}</div></div>`;
-    container.appendChild(en);});
+let tlOffset=0,tlCache={},tlMode='conv',ttOffset=0;
+function renderTLToggle(container){
+  let toggle=document.getElementById('tlToggle');
+  if(!toggle){
+    toggle=document.createElement('div');toggle.id='tlToggle';toggle.className='flex gap-1 mb-5 p-1 rounded-lg bg-gray-100 dark:bg-slate-800 w-fit';
+    container.parentNode.insertBefore(toggle,container);
+  }
+  toggle.replaceChildren();
+  const mkBtn=(label,mode)=>{const b=document.createElement('button');
+    b.className='px-3 py-1.5 text-xs rounded-md transition-colors '+(tlMode===mode?'bg-white dark:bg-slate-700 shadow text-blue-600 dark:text-blue-400 font-medium':C.text3+' hover:'+C.text2);
+    b.textContent=label;b.onclick=()=>{if(tlMode===mode)return;tlMode=mode;renderTLToggle(container);if(mode==='conv')loadTimeline();else loadTimelineTurns();};
+    toggle.appendChild(b);};
+  mkBtn(t('by_conversation'),'conv');mkBtn(t('by_turn'),'turn');
+}
+async function loadTimeline(append) {
+  const container=document.getElementById('timelineList');
+  renderTLToggle(container);
+  if(tlMode==='turn'){loadTimelineTurns(append);return;}
+  if(!append){tlOffset=0;tlCache={};}
+  const rows=await api('/conversations?sort=started_at&order=desc&limit=20&offset='+tlOffset);
+  if(!append){
+    container.replaceChildren();
+    container.className='relative pl-10 before:absolute before:left-[15px] before:top-0 before:bottom-0 before:w-0.5 before:bg-gradient-to-b before:from-blue-400 before:via-gray-300 dark:before:via-slate-600 before:to-transparent pb-8';
+  }
+  if(!rows.length&&!append){container.className=C.empty;container.textContent=t('no_timeline');return;}
+  // Remove old load-more btn
+  const oldBtn=container.querySelector('.tl-more');if(oldBtn)oldBtn.remove();
+  // Group by date
+  const groups={};
+  rows.forEach(c=>{const day=(c.started_at||'').slice(0,10)||'Unknown';(groups[day]=groups[day]||[]).push(c);});
+  for(const[day,convs] of Object.entries(groups)){
+    if(!container.querySelector(`[data-day="${day}"]`)){
+      // Date separator: big dot + date
+      const dh=document.createElement('div');dh.className='relative flex items-center gap-3 mb-5 -ml-10';dh.dataset.day=day;
+      const dot=document.createElement('div');dot.className='w-3.5 h-3.5 rounded-full bg-blue-500 ring-4 ring-white dark:ring-slate-900 ml-[9px] shrink-0';
+      const lbl=document.createElement('span');lbl.className='text-sm font-semibold '+C.text1;lbl.textContent=day;
+      dh.append(dot,lbl);container.appendChild(dh);
+    }
+    convs.forEach(c=>{
+      // Conversation node: small dot + card
+      const node=document.createElement('div');node.className='relative mb-5';
+      const dot2=document.createElement('div');dot2.className='absolute -left-[34px] top-2 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-white dark:ring-slate-900';
+      node.appendChild(dot2);
+      // Card
+      const card=document.createElement('div');card.className='rounded-xl border border-gray-200 dark:border-slate-700/50 bg-white dark:bg-slate-800/50 overflow-hidden transition-shadow hover:shadow-md';
+      // Header (clickable)
+      const hdr=document.createElement('div');hdr.className='px-4 py-3 cursor-pointer flex items-start justify-between gap-2';
+      const left=document.createElement('div');
+      const title=document.createElement('div');title.className='text-sm font-semibold '+C.text1;title.textContent=c.title||'Untitled';
+      const chips=document.createElement('div');chips.className='flex flex-wrap gap-1.5 mt-1.5';
+      const addC=(text,cls)=>{const s=document.createElement('span');s.className='px-1.5 py-0.5 rounded text-[10px] '+(cls||C.chip);s.textContent=text;chips.appendChild(s);};
+      if(c.project)addC(c.project);
+      addC(c.source_type,'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400');
+      const time=(c.started_at||'').replace('T',' ').slice(11,16);if(time)addC(time);
+      addC(c.message_count+' msgs');addC((c.word_count/1000).toFixed(1)+'k words');
+      left.append(title,chips);
+      const arrow=document.createElement('span');arrow.className='text-xs '+C.text4+' mt-1 shrink-0 transition-transform';arrow.textContent='▸';
+      hdr.append(left,arrow);card.appendChild(hdr);
+      // Body (hidden initially)
+      const body=document.createElement('div');body.className='hidden';body.id='tl-body-'+c.id;
+      card.appendChild(body);
+      // Toggle
+      hdr.onclick=()=>{
+        const isOpen=!body.classList.contains('hidden');
+        if(isOpen){body.classList.add('hidden');arrow.textContent='▸';arrow.style.transform='';}
+        else{body.classList.remove('hidden');arrow.textContent='▾';arrow.style.transform='rotate(90deg)';expandTimelineConv(c.id,body);}
+      };
+      node.appendChild(card);container.appendChild(node);
+    });
+  }
+  tlOffset+=rows.length;
+  // Load more btn
+  if(rows.length===20){
+    const more=document.createElement('div');more.className='tl-more relative -ml-10 flex items-center gap-3 mt-2';
+    const dot3=document.createElement('div');dot3.className='w-3 h-3 rounded-full bg-gray-300 dark:bg-slate-600 ring-4 ring-white dark:ring-slate-900 ml-[10px] shrink-0';
+    const btn=document.createElement('button');btn.className='px-4 py-1.5 text-xs rounded-lg '+C.btn;btn.textContent=t('load_more');
+    btn.onclick=()=>loadTimeline(true);
+    more.append(dot3,btn);container.appendChild(more);
+  }
+}
+async function expandTimelineConv(convId,body){
+  if(body.dataset.loaded)return;body.dataset.loaded='1';
+  // Loading indicator
+  const loading=document.createElement('div');loading.className='px-4 py-3 text-xs '+C.text4;loading.textContent='Loading...';
+  body.appendChild(loading);
+  // Fetch
+  let data=tlCache[convId];
+  if(!data){data=await api('/conversations/'+encodeURIComponent(convId)+'?full=true');tlCache[convId]=data;}
+  body.removeChild(loading);
+  const turns=msgsToTurns(data.messages);
+  if(!turns.length){const empty=document.createElement('div');empty.className='px-4 py-3 text-xs '+C.text4;empty.textContent='No messages';body.appendChild(empty);return;}
+  const md=AIChatLogUI.initMarkdown();
+  const list=document.createElement('div');list.className='divide-y divide-gray-100 dark:divide-slate-700/50';
+  turns.forEach((turn,i)=>{
+    const row=document.createElement('div');row.className='px-4 py-2.5';
+    // Turn header (collapsed summary)
+    const summary=document.createElement('div');summary.className='flex items-start gap-2 cursor-pointer text-xs';
+    const tArrow=document.createElement('span');tArrow.className=C.text4+' shrink-0 mt-0.5';tArrow.textContent='▸';
+    const tLabel=document.createElement('span');tLabel.className='font-mono text-blue-500 shrink-0 mt-0.5';tLabel.textContent=t('turn')+' '+(i+1);
+    const tSnip=document.createElement('span');tSnip.className=C.text2+' truncate';
+    const qSnip=(turn.user[0]?.content||'').slice(0,60).replace(/\n/g,' ');
+    const aSnip=(turn.assistant[0]?.content||'').slice(0,60).replace(/\n/g,' ');
+    tSnip.textContent=qSnip+(aSnip?' → '+aSnip:'');
+    summary.append(tArrow,tLabel,tSnip);row.appendChild(summary);
+    // Turn detail (hidden)
+    const detail=document.createElement('div');detail.className='hidden mt-3 space-y-3 flex flex-col';
+    row.appendChild(detail);
+    summary.onclick=()=>{
+      const open=!detail.classList.contains('hidden');
+      if(open){detail.classList.add('hidden');tArrow.textContent='▸';}
+      else{
+        detail.classList.remove('hidden');tArrow.textContent='▾';
+        if(!detail.dataset.rendered){detail.dataset.rendered='1';
+          turn.user.forEach(m=>renderMsg(m,detail,md));
+          turn.assistant.forEach(m=>renderMsg(m,detail,md));
+          lucide.createIcons({nameAttr:'data-lucide',attrs:{class:'w-3 h-3'}});
+        }
+      }
+    };
+    list.appendChild(row);
+  });
+  body.appendChild(list);
+}
+async function loadTimelineTurns(append) {
+  if(!append)ttOffset=0;
+  const turns=await api('/timeline?limit=30&offset='+ttOffset);
+  const container=document.getElementById('timelineList');
+  if(!append){
+    container.replaceChildren();
+    container.className='relative pl-10 before:absolute before:left-[15px] before:top-0 before:bottom-0 before:w-0.5 before:bg-gradient-to-b before:from-emerald-400 before:via-gray-300 dark:before:via-slate-600 before:to-transparent pb-8';
+  }
+  if(!turns.length&&!append){container.className=C.empty;container.textContent=t('no_timeline');return;}
+  const oldBtn=container.querySelector('.tl-more');if(oldBtn)oldBtn.remove();
+  // Group by date
+  const groups={};
+  turns.forEach(tr=>{const day=(tr.timestamp||'').slice(0,10)||'Unknown';(groups[day]=groups[day]||[]).push(tr);});
+  for(const[day,items] of Object.entries(groups)){
+    if(!container.querySelector(`[data-day="${day}"]`)){
+      const dh=document.createElement('div');dh.className='relative flex items-center gap-3 mb-5 -ml-10';dh.dataset.day=day;
+      const dot=document.createElement('div');dot.className='w-3.5 h-3.5 rounded-full bg-emerald-500 ring-4 ring-white dark:ring-slate-900 ml-[9px] shrink-0';
+      const lbl=document.createElement('span');lbl.className='text-sm font-semibold '+C.text1;lbl.textContent=day;
+      dh.append(dot,lbl);container.appendChild(dh);
+    }
+    items.forEach(tr=>{
+      const node=document.createElement('div');node.className='relative mb-4';
+      const dot2=document.createElement('div');dot2.className='absolute -left-[34px] top-2 w-2 h-2 rounded-full bg-blue-400 ring-2 ring-white dark:ring-slate-900';
+      node.appendChild(dot2);
+      // Card
+      const card=document.createElement('div');card.className='rounded-xl border border-gray-200 dark:border-slate-700/50 bg-white dark:bg-slate-800/50 overflow-hidden';
+      // Header
+      const hdr=document.createElement('div');hdr.className='px-4 py-2.5 flex items-center gap-2 cursor-pointer';
+      const arrow=document.createElement('span');arrow.className='text-xs '+C.text4+' shrink-0';arrow.textContent='▸';
+      const time=document.createElement('span');time.className='font-mono text-[11px] '+C.text3;time.textContent=(tr.timestamp||'').slice(11,16);
+      const proj=document.createElement('span');proj.className='px-1.5 py-0.5 rounded text-[10px] bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400';proj.textContent=tr.project||'—';
+      const ttl=document.createElement('span');ttl.className='text-xs '+C.text2+' truncate';ttl.textContent=tr.title||'Untitled';
+      hdr.append(arrow,time,proj,ttl);card.appendChild(hdr);
+      // Summary
+      const summary=document.createElement('div');summary.className='px-4 pb-2.5 text-xs '+C.text3;
+      const qSnip=(tr.user_content||'').slice(0,80).replace(/\n/g,' ');
+      const aSnip=(tr.assistant_content||'').slice(0,80).replace(/\n/g,' ');
+      summary.textContent=qSnip+(aSnip?' → '+aSnip:'');
+      card.appendChild(summary);
+      // Detail (hidden)
+      const detail=document.createElement('div');detail.className='hidden px-4 pb-3 space-y-3 flex flex-col';
+      card.appendChild(detail);
+      hdr.onclick=()=>{
+        const open=!detail.classList.contains('hidden');
+        if(open){detail.classList.add('hidden');summary.classList.remove('hidden');arrow.textContent='▸';}
+        else{detail.classList.remove('hidden');summary.classList.add('hidden');arrow.textContent='▾';
+          if(!detail.dataset.rendered){detail.dataset.rendered='1';
+            // Fetch full conversation and render this turn
+            (async()=>{
+              let data=tlCache[tr.conversation_id];
+              if(!data){data=await api('/conversations/'+encodeURIComponent(tr.conversation_id)+'?full=true');tlCache[tr.conversation_id]=data;}
+              const allTurns=msgsToTurns(data.messages);
+              const thisTurn=allTurns[tr.turn_seq];
+              if(thisTurn){const md=AIChatLogUI.initMarkdown();
+                thisTurn.user.forEach(m=>renderMsg(m,detail,md));
+                thisTurn.assistant.forEach(m=>renderMsg(m,detail,md));
+              }
+            })();
+          }
+        }
+      };
+      node.appendChild(card);container.appendChild(node);
+    });
+  }
+  ttOffset+=turns.length;
+  if(turns.length===30){
+    const more=document.createElement('div');more.className='tl-more relative -ml-10 flex items-center gap-3 mt-2';
+    const dot3=document.createElement('div');dot3.className='w-3 h-3 rounded-full bg-gray-300 dark:bg-slate-600 ring-4 ring-white dark:ring-slate-900 ml-[10px] shrink-0';
+    const btn=document.createElement('button');btn.className='px-4 py-1.5 text-xs rounded-lg '+C.btn;btn.textContent=t('load_more');
+    btn.onclick=()=>loadTimelineTurns(true);
+    more.append(dot3,btn);container.appendChild(more);
+  }
 }
 async function loadSettings() {
   const cfg=await api('/config'), summary=await api('/stats/summary');
@@ -654,8 +892,10 @@ async function loadSettings() {
     fb.onclick=async()=>{st.textContent=t('testing');st.className='text-xs ml-2 text-amber-500';
       try{const r=await fetch('/api/llm/models',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({adapter,base_url:getUrl(),api_key:getKey()})});const d=await r.json();
         if(d.ok&&d.models?.length){st.textContent='';modIds.forEach(mid=>{const inp=document.getElementById(mid);if(!inp)return;
-          let dl=document.getElementById(mid+'List');if(!dl){dl=document.createElement('datalist');dl.id=mid+'List';inp.parentNode.appendChild(dl);inp.setAttribute('list',mid+'List');}
-          dl.replaceChildren();d.models.forEach(m=>{const o=document.createElement('option');o.value=m;dl.appendChild(o);});});
+          const curVal=inp.value||'';const sel=document.createElement('select');sel.id=mid;sel.className=inp.className;
+          const emptyOpt=document.createElement('option');emptyOpt.value='';emptyOpt.textContent='-- select --';sel.appendChild(emptyOpt);
+          d.models.forEach(m=>{const o=document.createElement('option');o.value=m;o.textContent=m;if(m===curVal)o.selected=true;sel.appendChild(o);});
+          inp.replaceWith(sel);});
           st.textContent=d.models.length+' models';st.className='text-xs ml-2 text-emerald-500';}
         else{st.textContent=d.error||t('connection_failed');st.className='text-xs ml-2 text-red-500';}
       }catch(e){st.textContent=t('connection_failed');st.className='text-xs ml-2 text-red-500';}};

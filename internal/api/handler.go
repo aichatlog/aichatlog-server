@@ -3,9 +3,12 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/aichatlog/aichatlog/server/internal/config"
 	"github.com/aichatlog/aichatlog/server/internal/storage"
@@ -16,19 +19,24 @@ type Extractor interface {
 	ExtractOne(conversationID string) error
 }
 
+// ExtractorFactory creates an Extractor from LLM config. Used for hot-reload.
+type ExtractorFactory func(llmCfg *config.ServerConfig) Extractor
+
 // Handler is the main HTTP handler for the aichatlog-server API.
 type Handler struct {
-	store     *storage.Store
-	token     string
-	mux       *http.ServeMux
-	dashboard []byte
-	cfgMgr    *config.Manager
-	extractor Extractor
+	store            *storage.Store
+	token            string
+	mux              *http.ServeMux
+	dashboard        []byte
+	cfgMgr           *config.Manager
+	extractor        Extractor
+	extractorFactory ExtractorFactory
+	mu               sync.RWMutex
 }
 
 // NewHandler creates a new API handler.
-func NewHandler(store *storage.Store, token string, dashboardHTML []byte, cfgMgr *config.Manager, extractor Extractor) *Handler {
-	h := &Handler{store: store, token: token, dashboard: dashboardHTML, cfgMgr: cfgMgr, extractor: extractor}
+func NewHandler(store *storage.Store, token string, dashboardHTML []byte, cfgMgr *config.Manager, extractor Extractor, extractorFactory ExtractorFactory) *Handler {
+	h := &Handler{store: store, token: token, dashboard: dashboardHTML, cfgMgr: cfgMgr, extractor: extractor, extractorFactory: extractorFactory}
 	mux := http.NewServeMux()
 
 	// Dashboard
@@ -54,6 +62,9 @@ func NewHandler(store *storage.Store, token string, dashboardHTML []byte, cfgMgr
 	mux.HandleFunc("GET /api/conversations/{id}/extractions", h.handleGetExtractions)
 	mux.HandleFunc("GET /api/config", h.handleGetConfig)
 	mux.HandleFunc("POST /api/config", h.handleUpdateConfig)
+	mux.HandleFunc("GET /api/timeline", h.handleTimeline)
+	mux.HandleFunc("POST /api/llm/test", h.handleLLMTest)
+	mux.HandleFunc("POST /api/llm/models", h.handleLLMModels)
 
 	h.mux = mux
 	return h
@@ -188,6 +199,24 @@ func (h *Handler) handleListConversations(w http.ResponseWriter, r *http.Request
 	if conversations == nil {
 		conversations = []storage.ConversationRow{}
 	}
+
+	// When searching, attach matching turn snippets
+	if params.Query != "" {
+		snippetMap := h.store.SearchSnippets(params.Query, params.Limit*3)
+		if len(snippetMap) > 0 {
+			type convWithSnippets struct {
+				storage.ConversationRow
+				Snippets []storage.TurnSnippet `json:"snippets,omitempty"`
+			}
+			results := make([]convWithSnippets, len(conversations))
+			for i, c := range conversations {
+				results[i] = convWithSnippets{ConversationRow: c, Snippets: snippetMap[c.ID]}
+			}
+			jsonResponse(w, results)
+			return
+		}
+	}
+
 	jsonResponse(w, conversations)
 }
 
@@ -329,7 +358,10 @@ func (h *Handler) handleUpdateConversation(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *Handler) handleExtractConversation(w http.ResponseWriter, r *http.Request) {
-	if h.extractor == nil {
+	h.mu.RLock()
+	ext := h.extractor
+	h.mu.RUnlock()
+	if ext == nil {
 		jsonError(w, "LLM extraction not configured", http.StatusNotImplemented)
 		return
 	}
@@ -345,7 +377,7 @@ func (h *Handler) handleExtractConversation(w http.ResponseWriter, r *http.Reque
 	}
 	// Clear existing extractions to allow re-extraction
 	h.store.ClearExtractions(conv.ID)
-	if err := h.extractor.ExtractOne(conv.ID); err != nil {
+	if err := ext.ExtractOne(conv.ID); err != nil {
 		log.Printf("Manual extraction error for %s: %v", conv.ID, err)
 		jsonError(w, "Extraction failed: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -401,6 +433,22 @@ func (h *Handler) handleStats(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, stats)
 }
 
+func (h *Handler) handleTimeline(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	limit := intParam(q.Get("limit"), 50)
+	offset := intParam(q.Get("offset"), 0)
+	turns, err := h.store.ListTurns(limit, offset)
+	if err != nil {
+		log.Printf("Error listing turns: %v", err)
+		jsonError(w, "Internal error", http.StatusInternalServerError)
+		return
+	}
+	if turns == nil {
+		turns = []storage.TurnRow{}
+	}
+	jsonResponse(w, turns)
+}
+
 func (h *Handler) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 	if h.cfgMgr == nil {
 		jsonError(w, "Config not available", http.StatusNotImplemented)
@@ -427,11 +475,200 @@ func (h *Handler) handleUpdateConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Hot-reload LLM extractor
+	if h.extractorFactory != nil {
+		newExt := h.extractorFactory(&cfg)
+		h.mu.Lock()
+		h.extractor = newExt
+		h.mu.Unlock()
+		if newExt != nil {
+			log.Printf("LLM extractor reloaded (adapter=%s)", cfg.LLM.Adapter)
+		} else {
+			log.Printf("LLM extractor disabled")
+		}
+	}
+
 	log.Printf("Config updated (adapter=%s)", cfg.Output.Adapter)
 	jsonResponse(w, map[string]interface{}{
 		"ok":      true,
-		"message": "Config updated. Restart server to apply output adapter changes.",
+		"message": "Config updated. LLM changes applied immediately.",
 	})
+}
+
+// llmTestRequest is the request body for POST /api/llm/test and /api/llm/models.
+type llmTestRequest struct {
+	Adapter string `json:"adapter"`
+	BaseURL string `json:"base_url"`
+	APIKey  string `json:"api_key"`
+	Model   string `json:"model"`
+}
+
+// normalizeLLMBaseURL strips trailing slashes and /v1 suffix to get the raw host URL.
+func normalizeLLMBaseURL(raw string) string {
+	u := strings.TrimRight(raw, "/")
+	u = strings.TrimSuffix(u, "/v1")
+	u = strings.TrimRight(u, "/")
+	return u
+}
+
+func (h *Handler) handleLLMTest(w http.ResponseWriter, r *http.Request) {
+	var req llmTestRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	var testURL string
+	var httpReq *http.Request
+	var err error
+
+	switch req.Adapter {
+	case "ollama":
+		base := normalizeLLMBaseURL(req.BaseURL)
+		if base == "" {
+			base = "http://localhost:11434"
+		}
+		testURL = base + "/api/tags"
+		httpReq, err = http.NewRequest("GET", testURL, nil)
+	case "openai":
+		base := normalizeLLMBaseURL(req.BaseURL)
+		if base == "" {
+			base = "https://api.openai.com"
+		}
+		testURL = base + "/v1/models"
+		httpReq, err = http.NewRequest("GET", testURL, nil)
+		if err == nil && req.APIKey != "" {
+			httpReq.Header.Set("Authorization", "Bearer "+req.APIKey)
+		}
+	case "anthropic":
+		testURL = "https://api.anthropic.com/v1/models"
+		httpReq, err = http.NewRequest("GET", testURL, nil)
+		if err == nil {
+			httpReq.Header.Set("x-api-key", req.APIKey)
+			httpReq.Header.Set("anthropic-version", "2023-06-01")
+		}
+	default:
+		jsonError(w, "Unsupported adapter: "+req.Adapter, http.StatusBadRequest)
+		return
+	}
+
+	if err != nil {
+		jsonResponse(w, map[string]interface{}{"ok": false, "error": "Failed to create request: " + err.Error()})
+		return
+	}
+
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		jsonResponse(w, map[string]interface{}{"ok": false, "error": err.Error()})
+		return
+	}
+	defer resp.Body.Close()
+	io.ReadAll(resp.Body) // drain
+
+	if resp.StatusCode >= 400 {
+		jsonResponse(w, map[string]interface{}{"ok": false, "error": fmt.Sprintf("HTTP %d from %s", resp.StatusCode, testURL)})
+		return
+	}
+
+	jsonResponse(w, map[string]interface{}{"ok": true, "message": "Connection successful"})
+}
+
+func (h *Handler) handleLLMModels(w http.ResponseWriter, r *http.Request) {
+	var req llmTestRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	var models []string
+
+	switch req.Adapter {
+	case "ollama":
+		base := normalizeLLMBaseURL(req.BaseURL)
+		if base == "" {
+			base = "http://localhost:11434"
+		}
+		httpReq, err := http.NewRequest("GET", base+"/api/tags", nil)
+		if err != nil {
+			jsonResponse(w, map[string]interface{}{"ok": false, "error": err.Error()})
+			return
+		}
+		resp, err := client.Do(httpReq)
+		if err != nil {
+			jsonResponse(w, map[string]interface{}{"ok": false, "error": err.Error()})
+			return
+		}
+		defer resp.Body.Close()
+		body, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode >= 400 {
+			jsonResponse(w, map[string]interface{}{"ok": false, "error": fmt.Sprintf("HTTP %d: %s", resp.StatusCode, string(body[:min(len(body), 200)]))})
+			return
+		}
+		var result struct {
+			Models []struct {
+				Name string `json:"name"`
+			} `json:"models"`
+		}
+		if err := json.Unmarshal(body, &result); err != nil {
+			jsonResponse(w, map[string]interface{}{"ok": false, "error": "Failed to parse response"})
+			return
+		}
+		for _, m := range result.Models {
+			models = append(models, m.Name)
+		}
+
+	case "openai":
+		base := normalizeLLMBaseURL(req.BaseURL)
+		if base == "" {
+			base = "https://api.openai.com"
+		}
+		httpReq, err := http.NewRequest("GET", base+"/v1/models", nil)
+		if err != nil {
+			jsonResponse(w, map[string]interface{}{"ok": false, "error": err.Error()})
+			return
+		}
+		if req.APIKey != "" {
+			httpReq.Header.Set("Authorization", "Bearer "+req.APIKey)
+		}
+		resp, err := client.Do(httpReq)
+		if err != nil {
+			jsonResponse(w, map[string]interface{}{"ok": false, "error": err.Error()})
+			return
+		}
+		defer resp.Body.Close()
+		body, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode >= 400 {
+			jsonResponse(w, map[string]interface{}{"ok": false, "error": fmt.Sprintf("HTTP %d: %s", resp.StatusCode, string(body[:min(len(body), 200)]))})
+			return
+		}
+		var result struct {
+			Data []struct {
+				ID string `json:"id"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(body, &result); err != nil {
+			jsonResponse(w, map[string]interface{}{"ok": false, "error": "Failed to parse response"})
+			return
+		}
+		for _, m := range result.Data {
+			models = append(models, m.ID)
+		}
+
+	case "anthropic":
+		models = []string{
+			"claude-haiku-4-5-20251001",
+			"claude-sonnet-4-20250514",
+			"claude-opus-4-20250514",
+		}
+
+	default:
+		jsonError(w, "Unsupported adapter: "+req.Adapter, http.StatusBadRequest)
+		return
+	}
+
+	jsonResponse(w, map[string]interface{}{"ok": true, "models": models})
 }
 
 // Helper functions

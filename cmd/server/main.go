@@ -109,7 +109,22 @@ func main() {
 	if extractor != nil {
 		extractorIface = extractor
 	}
-	handler := api.NewHandler(store, *token, web.DashboardHTML, cfgMgr, extractorIface)
+	// Factory for hot-reloading LLM extractor on config change
+	extractorFactory := func(cfg *config.ServerConfig) api.Extractor {
+		llmAdp, err := llm.NewAdapter(&cfg.LLM)
+		if err != nil {
+			log.Printf("WARNING: LLM adapter error: %v", err)
+			return nil
+		}
+		if llmAdp == nil {
+			return nil
+		}
+		return processor.NewExtractor(store, llmAdp, adapter, &processor.ExtractorConfig{
+			MinWords: cfg.LLM.MinWords,
+			SyncDir:  cfg.Processor.SyncDir,
+		})
+	}
+	handler := api.NewHandler(store, *token, web.DashboardHTML, cfgMgr, extractorIface, extractorFactory)
 
 	// Start server
 	addr := fmt.Sprintf(":%d", *port)
