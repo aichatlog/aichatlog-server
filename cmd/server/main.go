@@ -133,7 +133,7 @@ func main() {
 			MaxMonthlyBudget:      int(cfg.LLM.MaxMonthlyBudget),
 		})
 	}
-	handler := api.NewHandler(store, *token, web.DashboardHTML, cfgMgr, extractorIface, extractorFactory)
+	handler := api.NewHandler(store, *token, web.DashboardHTML, web.FaviconICO, cfgMgr, extractorIface, extractorFactory)
 
 	// Start server
 	addr := fmt.Sprintf(":%d", *port)

@@ -35,13 +35,20 @@ type Handler struct {
 }
 
 // NewHandler creates a new API handler.
-func NewHandler(store *storage.Store, token string, dashboardHTML []byte, cfgMgr *config.Manager, extractor Extractor, extractorFactory ExtractorFactory) *Handler {
+func NewHandler(store *storage.Store, token string, dashboardHTML []byte, faviconICO []byte, cfgMgr *config.Manager, extractor Extractor, extractorFactory ExtractorFactory) *Handler {
 	h := &Handler{store: store, token: token, dashboard: dashboardHTML, cfgMgr: cfgMgr, extractor: extractor, extractorFactory: extractorFactory}
 	mux := http.NewServeMux()
 
 	// Dashboard
 	if len(dashboardHTML) > 0 {
 		mux.HandleFunc("GET /", h.handleDashboard)
+	}
+	if len(faviconICO) > 0 {
+		mux.HandleFunc("GET /favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "image/x-icon")
+			w.Header().Set("Cache-Control", "public, max-age=86400")
+			w.Write(faviconICO)
+		})
 	}
 
 	mux.HandleFunc("GET /api/health", h.handleHealth)
