@@ -6,7 +6,7 @@
 <title>AIChatLog Server</title>
 <link rel="icon" href="/favicon.ico" type="image/x-icon">
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.js"></script>
 <!-- Markdown rendering -->
 <script src="https://cdn.jsdelivr.net/npm/markdown-it@14/dist/markdown-it.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
@@ -146,7 +146,8 @@ tailwind.config = {
 .md-content{font-size:14px;line-height:1.7}
 .md-content h1,.md-content h2,.md-content h3{font-size:1em;font-weight:600;margin:0.5em 0 0.25em}
 .md-content p{margin:0.3em 0}
-.md-content ul,.md-content ol{margin:0.3em 0;padding-left:1.5em}
+.md-content ul{margin:0.3em 0;padding-left:1.5em;list-style-type:disc}
+.md-content ol{margin:0.3em 0;padding-left:1.5em;list-style-type:decimal}
 .md-content li{margin:0.1em 0}
 .md-content table{border-collapse:collapse;margin:0.5em 0;font-size:13px;width:100%}
 .md-content th,.md-content td{border:1px solid #d1d5db;padding:4px 10px;text-align:left}
@@ -175,7 +176,7 @@ tailwind.config = {
 <div class="max-w-6xl mx-auto px-5 py-6">
   <!-- Header -->
   <header class="flex items-center gap-3 mb-6">
-    <svg class="w-7 h-7" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg"><rect x="16" y="16" width="128" height="128" rx="28" fill="#1E293B"/><path d="M48 66 L48 52 C48 46, 54 40, 60 40 L100 40 C106 40, 112 46, 112 52 L112 70 C112 76, 106 82, 100 82 L84 82 L72 94 L75 82 L60 82 C54 82, 48 76, 48 70 Z" fill="none" stroke="#60A5FA" stroke-width="2.5" stroke-linejoin="round"/><path d="M62 54 L98 54" stroke="#60A5FA" stroke-width="2.2" stroke-linecap="round" opacity="0.6"/><path d="M62 64 L88 64" stroke="#60A5FA" stroke-width="2.2" stroke-linecap="round" opacity="0.6"/><line x1="80" y1="88" x2="80" y2="96" stroke="#475569" stroke-width="1.5" stroke-dasharray="2 2"/><circle cx="54" cy="104" r="3.5" fill="#34D399"/><path d="M62 104 L102 104" stroke="#34D399" stroke-width="2.2" stroke-linecap="round" opacity="0.8"/><circle cx="54" cy="116" r="3.5" fill="#34D399" opacity="0.5"/><path d="M62 116 L90 116" stroke="#34D399" stroke-width="2.2" stroke-linecap="round" opacity="0.5"/></svg>
+    <svg class="w-9 h-9" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg"><rect x="16" y="16" width="128" height="128" rx="28" fill="#1E293B"/><path d="M48 66 L48 52 C48 46, 54 40, 60 40 L100 40 C106 40, 112 46, 112 52 L112 70 C112 76, 106 82, 100 82 L84 82 L72 94 L75 82 L60 82 C54 82, 48 76, 48 70 Z" fill="none" stroke="#60A5FA" stroke-width="2.5" stroke-linejoin="round"/><path d="M62 54 L98 54" stroke="#60A5FA" stroke-width="2.2" stroke-linecap="round" opacity="0.6"/><path d="M62 64 L88 64" stroke="#60A5FA" stroke-width="2.2" stroke-linecap="round" opacity="0.6"/><line x1="80" y1="88" x2="80" y2="96" stroke="#475569" stroke-width="1.5" stroke-dasharray="2 2"/><circle cx="54" cy="104" r="3.5" fill="#34D399"/><path d="M62 104 L102 104" stroke="#34D399" stroke-width="2.2" stroke-linecap="round" opacity="0.8"/><circle cx="54" cy="116" r="3.5" fill="#34D399" opacity="0.5"/><path d="M62 116 L90 116" stroke="#34D399" stroke-width="2.2" stroke-linecap="round" opacity="0.5"/></svg>
     <h1 class="text-xl font-semibold tracking-tight">AIChatLog</h1>
     <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 uppercase tracking-wider">Server</span>
     <div class="flex-1"></div>
@@ -1090,21 +1091,18 @@ function showAuthOverlay(mode) {
 
 function addLogoutButton() {
   if (!currentUser) return;
-  const nav = document.querySelector('nav') || document.querySelector('header');
-  if (!nav) return;
-  // Check if already exists
   if (document.getElementById('logoutBtn')) return;
+  const header = document.querySelector('header');
+  if (!header) return;
   const btn = document.createElement('button');
   btn.id = 'logoutBtn';
-  btn.className = 'ml-2 px-3 py-1 text-xs rounded border ' + C.cardBorder + ' ' + C.textMuted + ' hover:text-red-500 hover:border-red-500/30 transition-colors';
+  btn.className = 'px-2.5 py-1 text-xs rounded border border-gray-300 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:text-red-500 hover:border-red-500/30 dark:hover:text-red-400 dark:hover:border-red-500/30 transition-colors';
   btn.textContent = t('logout');
   btn.onclick = async () => {
     await fetch('/api/auth/logout', {method:'POST'});
     location.reload();
   };
-  // Find the lang/theme buttons area
-  const btnsArea = nav.querySelector('.flex.items-center.gap-1') || nav;
-  btnsArea.appendChild(btn);
+  header.appendChild(btn);
 }
 
 async function initDashboard() {
@@ -1133,7 +1131,10 @@ async function renderAPIKeys(container) {
   container.appendChild(hdr);
 
   if (!keys || keys.length === 0) {
-    container.innerHTML += `<p class="text-sm ${C.textMuted}">${t('no_keys')}</p>`;
+    const empty = document.createElement('p');
+    empty.className = `text-sm ${C.textMuted}`;
+    empty.textContent = t('no_keys');
+    container.appendChild(empty);
     lucide.createIcons();
     return;
   }
@@ -1195,7 +1196,7 @@ function showCreateKeyDialog(parentContainer) {
       <div class="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
         <div class="text-xs text-emerald-500 font-medium mb-1">✅ ${t('key_created')}</div>
         <div class="flex items-center gap-2">
-          <code class="flex-1 text-sm font-mono ${C.text} bg-gray-900 px-2 py-1 rounded select-all break-all">${esc(res.key)}</code>
+          <code class="flex-1 text-sm font-mono ${C.text} bg-gray-100 dark:bg-gray-900 px-2 py-1 rounded select-all break-all">${esc(res.key)}</code>
           <button onclick="navigator.clipboard.writeText('${res.key}');this.textContent='${t('key_copied')}'" class="px-2 py-1 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 shrink-0">${t('copy_key')}</button>
         </div>
         <div class="text-xs text-amber-500 mt-2">⚠️ ${t('key_warning')}</div>
