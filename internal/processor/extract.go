@@ -13,18 +13,22 @@ import (
 
 // Extractor handles LLM-based knowledge extraction from conversations.
 type Extractor struct {
-	store    *storage.Store
-	llm      llm.Adapter
-	adapter  output.Adapter
-	syncDir  string
-	minWords int
-	model    string
+	store                 *storage.Store
+	llm                   llm.Adapter
+	adapter               output.Adapter
+	syncDir               string
+	minWords              int
+	modelUpgradeThreshold int
+	maxMonthlyBudget      int
+	model                 string
 }
 
 // ExtractorConfig for the extraction pipeline.
 type ExtractorConfig struct {
-	MinWords int
-	SyncDir  string
+	MinWords              int
+	SyncDir               string
+	ModelUpgradeThreshold int
+	MaxMonthlyBudget      int // max extractions per month, 0 = unlimited
 }
 
 // NewExtractor creates a new knowledge extractor. Returns nil if llm is nil.
@@ -42,19 +46,41 @@ func NewExtractor(store *storage.Store, llmAdapter llm.Adapter, outputAdapter ou
 			syncDir = cfg.SyncDir
 		}
 	}
+	modelUpgrade := 4000
+	maxBudget := 0
+	if cfg != nil {
+		if cfg.ModelUpgradeThreshold > 0 {
+			modelUpgrade = cfg.ModelUpgradeThreshold
+		}
+		maxBudget = cfg.MaxMonthlyBudget
+	}
 	return &Extractor{
-		store:    store,
-		llm:      llmAdapter,
-		adapter:  outputAdapter,
-		syncDir:  syncDir,
-		minWords: minWords,
-		model:    llmAdapter.Name(),
+		store:                 store,
+		llm:                   llmAdapter,
+		adapter:               outputAdapter,
+		syncDir:               syncDir,
+		minWords:              minWords,
+		modelUpgradeThreshold: modelUpgrade,
+		maxMonthlyBudget:      maxBudget,
+		model:                 llmAdapter.Name(),
 	}
 }
 
 // ExtractOne runs extraction on a single conversation.
-// Skips if already extracted or below word threshold.
+// Skips if already extracted, below word threshold, or budget exceeded.
 func (e *Extractor) ExtractOne(conversationID string) error {
+	// Check monthly budget
+	if e.maxMonthlyBudget > 0 {
+		count, err := e.store.MonthlyExtractionCount()
+		if err != nil {
+			return fmt.Errorf("check budget: %w", err)
+		}
+		if count >= e.maxMonthlyBudget {
+			log.Printf("extractor: monthly budget reached (%d/%d), skipping %s", count, e.maxMonthlyBudget, conversationID)
+			return nil
+		}
+	}
+
 	// Check if already extracted
 	has, err := e.store.HasExtraction(conversationID)
 	if err != nil {

@@ -1478,6 +1478,16 @@ type ExtractionRow struct {
 	ModelUsed      string `json:"model_used"`
 }
 
+// MonthlyExtractionCount returns the number of extractions performed this month.
+func (s *Store) MonthlyExtractionCount() (int, error) {
+	var count int
+	err := s.db.QueryRow(`
+		SELECT COUNT(*) FROM extractions
+		WHERE extracted_at >= date('now','start of month')
+	`).Scan(&count)
+	return count, err
+}
+
 // InsertExtraction stores an extraction result.
 func (s *Store) InsertExtraction(conversationID, extractionType, title, content, metadata, outputPath, modelUsed string) error {
 	_, err := s.db.Exec(`

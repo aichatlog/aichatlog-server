@@ -82,8 +82,10 @@ func main() {
 	var extractor *processor.Extractor
 	if llmAdapter != nil {
 		extractor = processor.NewExtractor(store, llmAdapter, adapter, &processor.ExtractorConfig{
-			MinWords: cfg.LLM.MinWords,
-			SyncDir:  cfg.Processor.SyncDir,
+			MinWords:              cfg.LLM.MinWords,
+			SyncDir:               cfg.Processor.SyncDir,
+			ModelUpgradeThreshold: cfg.LLM.ModelUpgradeThreshold,
+			MaxMonthlyBudget:      int(cfg.LLM.MaxMonthlyBudget),
 		})
 		log.Printf("  LLM: %s (extraction enabled)", llmAdapter.Name())
 	}
@@ -91,6 +93,11 @@ func main() {
 	// Initialize processor
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Set custom template directory if configured
+	if cfg.Processor.TemplateDir != "" {
+		processor.TemplateDir = cfg.Processor.TemplateDir
+	}
 
 	proc := processor.New(store, adapter, extractor, &processor.Config{
 		Interval:  time.Duration(cfg.Processor.Interval) * time.Second,
@@ -120,8 +127,10 @@ func main() {
 			return nil
 		}
 		return processor.NewExtractor(store, llmAdp, adapter, &processor.ExtractorConfig{
-			MinWords: cfg.LLM.MinWords,
-			SyncDir:  cfg.Processor.SyncDir,
+			MinWords:              cfg.LLM.MinWords,
+			SyncDir:               cfg.Processor.SyncDir,
+			ModelUpgradeThreshold: cfg.LLM.ModelUpgradeThreshold,
+			MaxMonthlyBudget:      int(cfg.LLM.MaxMonthlyBudget),
 		})
 	}
 	handler := api.NewHandler(store, *token, web.DashboardHTML, cfgMgr, extractorIface, extractorFactory)

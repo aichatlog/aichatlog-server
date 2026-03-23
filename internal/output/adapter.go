@@ -24,6 +24,7 @@ type Config struct {
 	FNS     *FNSConfig     `json:"fns,omitempty"`
 	Git     *GitConfig     `json:"git,omitempty"`
 	Webhook *WebhookConfig `json:"webhook,omitempty"`
+	Notion  *NotionConfig  `json:"notion,omitempty"`
 }
 
 // NewAdapter creates an adapter from configuration.
@@ -52,6 +53,11 @@ func NewAdapter(cfg *Config) (Adapter, error) {
 			return nil, fmt.Errorf("webhook config is required")
 		}
 		return NewWebhookAdapter(cfg.Webhook), nil
+	case "notion":
+		if cfg.Notion == nil {
+			return nil, fmt.Errorf("notion config is required")
+		}
+		return NewNotionAdapter(cfg.Notion), nil
 	case "", "none":
 		return nil, nil
 	default:

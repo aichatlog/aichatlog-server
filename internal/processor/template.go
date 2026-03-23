@@ -2,6 +2,9 @@ package processor
 
 import (
 	"fmt"
+	"log"
+	"os"
+	"path/filepath"
 	"strings"
 	"text/template"
 	"time"
@@ -38,6 +41,37 @@ func getLabels(lang string) map[string]string {
 	return templateLabels["en"]
 }
 
+// Default embedded templates (used when no custom template file exists).
+const defaultConversationTemplate = `# {{.Title}}
+
+> **{{.L.date}}:** {{.StartedAt}} | **{{.L.project}}:** {{.Project}} | **{{.L.source}}:** {{.SourceType}}
+> **{{.L.messages}}:** {{.MessageCount}} | **{{.L.words}}:** {{.WordCount}}{{if .Model}} | **{{.L.model}}:** {{.Model}}{{end}}{{if or .TotalInputTokens .TotalOutputTokens}}
+> **{{.L.tokens}}:** {{.TotalInputTokens}} {{.L.in}} / {{.TotalOutputTokens}} {{.L.out}}{{end}}
+
+---
+
+{{range .Messages}}{{if not .IsContext}}### {{roleLabel .Role}} {{if .Timestamp}}[{{.Timestamp}}]{{end}}
+
+{{.Content}}
+
+{{end}}{{end}}`
+
+// TemplateDir is the custom template directory. If set, templates are loaded from files.
+// Files in this directory override the embedded defaults.
+var TemplateDir string
+
+// loadTemplate loads a template from TemplateDir if available, otherwise uses the default.
+func loadTemplate(name, defaultTmpl string) string {
+	if TemplateDir != "" {
+		path := filepath.Join(TemplateDir, name)
+		if data, err := os.ReadFile(path); err == nil {
+			log.Printf("template: loaded custom %s from %s", name, path)
+			return string(data)
+		}
+	}
+	return defaultTmpl
+}
+
 // RenderData is the data passed to the conversation template.
 type RenderData struct {
 	storage.ConversationRow
@@ -63,22 +97,7 @@ func RenderMarkdown(conv *storage.ConversationRow, messages []storage.MessageRow
 		},
 	}
 
-	tmplText := fmt.Sprintf(`# {{.Title}}
-
-> **%s:** {{.StartedAt}} | **%s:** {{.Project}} | **%s:** {{.SourceType}}
-> **%s:** {{.MessageCount}} | **%s:** {{.WordCount}}{{if .Model}} | **%s:** {{.Model}}{{end}}{{if or .TotalInputTokens .TotalOutputTokens}}
-> **%s:** {{.TotalInputTokens}} %s / {{.TotalOutputTokens}} %s{{end}}
-
----
-
-{{range .Messages}}{{if not .IsContext}}### {{roleLabel .Role}} {{if .Timestamp}}[{{.Timestamp}}]{{end}}
-
-{{.Content}}
-
-{{end}}{{end}}`,
-		l["date"], l["project"], l["source"],
-		l["messages"], l["words"], l["model"],
-		l["tokens"], l["in"], l["out"])
+	tmplText := loadTemplate("conversation.md.tpl", defaultConversationTemplate)
 
 	tmpl, err := template.New("conversation").Funcs(funcMap).Parse(tmplText)
 	if err != nil {

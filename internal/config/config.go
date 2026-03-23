@@ -21,10 +21,11 @@ type ServerConfig struct {
 
 // ProcessorConfig controls the background processor.
 type ProcessorConfig struct {
-	Enabled   bool   `json:"enabled"`
-	Interval  int    `json:"interval_seconds"`
-	BatchSize int    `json:"batch_size"`
-	SyncDir   string `json:"sync_dir"`
+	Enabled     bool   `json:"enabled"`
+	Interval    int    `json:"interval_seconds"`
+	BatchSize   int    `json:"batch_size"`
+	SyncDir     string `json:"sync_dir"`
+	TemplateDir string `json:"template_dir,omitempty"` // custom template directory (overrides defaults)
 }
 
 // Manager handles loading and saving configuration.

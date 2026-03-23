@@ -301,6 +301,7 @@ const STRINGS = {
     testing:'Testing...', connection_ok:'Connected!', connection_failed:'Failed',
     load_more:'Load More', no_timeline:'No conversations yet.', turn:'Turn',
     by_conversation:'By Conversation', by_turn:'By Q&A',
+    model_upgrade_threshold:'Upgrade model (words)', max_monthly_budget:'Monthly limit (0=∞)',
   },
   'zh-CN': {
     conversations:'对话', knowledge:'知识库', timeline:'时间线', settings:'设置',
@@ -327,6 +328,7 @@ const STRINGS = {
     testing:'测试中...', connection_ok:'连接成功！', connection_failed:'连接失败',
     load_more:'加载更多', no_timeline:'暂无对话。', turn:'轮次',
     by_conversation:'按对话', by_turn:'按问答对',
+    model_upgrade_threshold:'升级模型 (字数)', max_monthly_budget:'月提取上限 (0=不限)',
   },
   'zh-TW': {
     conversations:'對話', knowledge:'知識庫', timeline:'時間線', settings:'設定',
@@ -353,6 +355,7 @@ const STRINGS = {
     testing:'測試中...', connection_ok:'連線成功！', connection_failed:'連線失敗',
     load_more:'載入更多', no_timeline:'暫無對話。', turn:'輪次',
     by_conversation:'按對話', by_turn:'按問答對',
+    model_upgrade_threshold:'升級模型 (字數)', max_monthly_budget:'月擷取上限 (0=不限)',
   },
 };
 let currentLang = 'en';
@@ -862,14 +865,15 @@ async function loadSettings() {
   // Output Adapter
   const os=sec(t('output_adapter'),'upload-cloud');
   const oan=cfg.output?.adapter||'none';
-  const oaSel=si(['none','local','fns','git','webhook'],oan,'sOAdp');
+  const oaSel=si(['none','local','fns','git','webhook','notion'],oan,'sOAdp');
   rw(os,t('adapter'),oaSel);
   const oaf=document.createElement('div');oaf.id='sOFields';os.appendChild(oaf);
   function renderOF(n){const c2=document.getElementById('sOFields');c2.replaceChildren();
     if(n==='local'){rw(c2,t('path'),ti(cfg.output?.local?.path,'sOLPath'));}
     else if(n==='fns'){rw(c2,'URL',ti(cfg.output?.fns?.url,'sOFUrl'));rw(c2,'Token',pi('','sOFTok'));rw(c2,'Vault',ti(cfg.output?.fns?.vault,'sOFVlt'));}
     else if(n==='git'){rw(c2,'Repo Path',ti(cfg.output?.git?.repo_path,'sOGRepo'));rw(c2,'Auto Push',cb(cfg.output?.git?.auto_push,'sOGPush'));}
-    else if(n==='webhook'){rw(c2,'URL',ti(cfg.output?.webhook?.url,'sOWUrl'));}}
+    else if(n==='webhook'){rw(c2,'URL',ti(cfg.output?.webhook?.url,'sOWUrl'));}
+    else if(n==='notion'){rw(c2,'API Key',pi('','sONKey'));rw(c2,'Database ID',ti(cfg.output?.notion?.database_id,'sONDb'));}}
   renderOF(oan);oaSel.onchange=()=>renderOF(oaSel.value);
 
   // LLM
@@ -908,6 +912,8 @@ async function loadSettings() {
       llmBtnRow(c2,'ollama',()=>document.getElementById('sLOlUrl')?.value||'',()=>'',['sLOlMod','sLOlBig']);}}
   renderLF(llan);llSel.onchange=()=>renderLF(llSel.value);
   rw(lls,t('min_words'),ni(cfg.llm?.min_words||100,'sLMin'));
+  rw(lls,t('model_upgrade_threshold'),ni(cfg.llm?.model_upgrade_threshold||4000,'sLUpg'));
+  rw(lls,t('max_monthly_budget'),ni(cfg.llm?.max_monthly_budget||0,'sLBud'));
 
   // Processor
   const ps=sec(t('processor'),'cpu');
@@ -920,12 +926,13 @@ async function loadSettings() {
   const br=document.createElement('div');br.className='flex gap-2 mt-4';
   const svB=document.createElement('button');svB.className='flex items-center gap-1.5 px-4 py-2 text-xs rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors';svB.innerHTML=`<i data-lucide="save" class="w-3.5 h-3.5"></i> Save`;
   svB.onclick=async()=>{
-    const newCfg={lang:document.getElementById('sLang').value,output:{adapter:document.getElementById('sOAdp').value},processor:{enabled:document.getElementById('sPEn').checked,interval_seconds:parseInt(document.getElementById('sPInt').value)||30,batch_size:parseInt(document.getElementById('sPBat').value)||20,sync_dir:document.getElementById('sPDir').value},llm:{adapter:document.getElementById('sLAdp').value,min_words:parseInt(document.getElementById('sLMin').value)||100}};
+    const newCfg={lang:document.getElementById('sLang').value,output:{adapter:document.getElementById('sOAdp').value},processor:{enabled:document.getElementById('sPEn').checked,interval_seconds:parseInt(document.getElementById('sPInt').value)||30,batch_size:parseInt(document.getElementById('sPBat').value)||20,sync_dir:document.getElementById('sPDir').value},llm:{adapter:document.getElementById('sLAdp').value,min_words:parseInt(document.getElementById('sLMin').value)||100,model_upgrade_threshold:parseInt(document.getElementById('sLUpg').value)||4000,max_monthly_budget:parseInt(document.getElementById('sLBud').value)||0}};
     const oa=newCfg.output.adapter;
     if(oa==='local')newCfg.output.local={path:document.getElementById('sOLPath')?.value||''};
     else if(oa==='fns'){newCfg.output.fns={url:document.getElementById('sOFUrl')?.value||'',vault:document.getElementById('sOFVlt')?.value||''};const tk=document.getElementById('sOFTok')?.value;if(tk)newCfg.output.fns.token=tk;}
     else if(oa==='git'){newCfg.output.git={repo_path:document.getElementById('sOGRepo')?.value||'',auto_push:document.getElementById('sOGPush')?.checked||false};}
     else if(oa==='webhook'){newCfg.output.webhook={url:document.getElementById('sOWUrl')?.value||''};}
+    else if(oa==='notion'){newCfg.output.notion={database_id:document.getElementById('sONDb')?.value||''};const nk=document.getElementById('sONKey')?.value;if(nk)newCfg.output.notion.api_key=nk;}
     const la=newCfg.llm.adapter;
     if(la==='anthropic'){newCfg.llm.anthropic={model:document.getElementById('sLAMod')?.value||'',big_model:document.getElementById('sLABig')?.value||''};const k=document.getElementById('sLAKey')?.value;if(k)newCfg.llm.anthropic.api_key=k;}
     else if(la==='openai'){newCfg.llm.openai={base_url:document.getElementById('sLOUrl')?.value||'',model:document.getElementById('sLOMod')?.value||'',big_model:document.getElementById('sLOBig')?.value||''};const k=document.getElementById('sLOKey')?.value;if(k)newCfg.llm.openai.api_key=k;}
