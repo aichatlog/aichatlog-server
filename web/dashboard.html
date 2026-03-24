@@ -1192,19 +1192,32 @@ function showCreateKeyDialog(parentContainer) {
       body: JSON.stringify({name})
     })).json();
     if (res.error) { alert(res.error); return; }
-    const result = document.getElementById('newKeyResult');
-    result.classList.remove('hidden');
-    result.innerHTML = `
-      <div class="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
-        <div class="text-xs text-emerald-500 font-medium mb-1">✅ ${t('key_created')}</div>
-        <div class="flex items-center gap-2">
-          <code class="flex-1 text-sm font-mono ${C.text} bg-gray-100 dark:bg-gray-900 px-2 py-1 rounded select-all break-all">${esc(res.key)}</code>
-          <button onclick="navigator.clipboard.writeText('${res.key}');this.textContent='${t('key_copied')}'" class="px-2 py-1 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 shrink-0">${t('copy_key')}</button>
-        </div>
-        <div class="text-xs text-amber-500 mt-2">⚠️ ${t('key_warning')}</div>
-      </div>`;
-    document.getElementById('newKeyBtn').disabled = true;
-    document.getElementById('newKeyName').disabled = true;
+    const keyVal = res.key;
+    dlg.textContent = '';
+    const box = document.createElement('div');
+    box.className = 'p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30';
+    const hdr = document.createElement('div');
+    hdr.className = 'text-xs text-emerald-500 font-medium mb-1';
+    hdr.textContent = '\u2705 ' + t('key_created');
+    const row = document.createElement('div');
+    row.className = 'flex items-center gap-2';
+    const code = document.createElement('code');
+    code.className = `flex-1 text-sm font-mono ${C.text} bg-gray-100 dark:bg-gray-900 px-2 py-1 rounded select-all break-all`;
+    code.textContent = keyVal;
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'px-2 py-1 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 shrink-0';
+    copyBtn.textContent = t('copy_key');
+    copyBtn.onclick = () => { navigator.clipboard.writeText(keyVal); copyBtn.textContent = t('key_copied'); };
+    row.append(code, copyBtn);
+    const warn = document.createElement('div');
+    warn.className = 'text-xs text-amber-500 mt-2';
+    warn.textContent = '\u26A0\uFE0F ' + t('key_warning');
+    const doneBtn = document.createElement('button');
+    doneBtn.className = `mt-3 w-full px-4 py-1.5 text-sm rounded-lg border ${C.cardBorder} ${C.textMuted} hover:${C.text} transition-colors`;
+    doneBtn.textContent = 'OK';
+    doneBtn.onclick = () => { dlg.remove(); renderAPIKeys(parentContainer); };
+    box.append(hdr, row, warn, doneBtn);
+    dlg.appendChild(box);
   };
   document.getElementById('newKeyName').focus();
 }
