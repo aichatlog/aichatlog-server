@@ -9,7 +9,7 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/aichatlog/aichatlog/server/internal/storage"
+	"github.com/aichatlog/aichatlog-server/internal/storage"
 )
 
 // templateLabels holds per-language labels for markdown rendering.

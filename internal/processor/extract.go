@@ -6,9 +6,9 @@ import (
 	"log"
 	"strings"
 
-	"github.com/aichatlog/aichatlog/server/internal/llm"
-	"github.com/aichatlog/aichatlog/server/internal/output"
-	"github.com/aichatlog/aichatlog/server/internal/storage"
+	"github.com/aichatlog/aichatlog-server/internal/llm"
+	"github.com/aichatlog/aichatlog-server/internal/output"
+	"github.com/aichatlog/aichatlog-server/internal/storage"
 )
 
 // Extractor handles LLM-based knowledge extraction from conversations.

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/aichatlog/aichatlog/server/internal/storage"
+	"github.com/aichatlog/aichatlog-server/internal/storage"
 )
 
 // SystemPrompt returns the system prompt for knowledge extraction.

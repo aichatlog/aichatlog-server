@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/aichatlog/aichatlog/server/internal/llm"
-	"github.com/aichatlog/aichatlog/server/internal/output"
+	"github.com/aichatlog/aichatlog-server/internal/llm"
+	"github.com/aichatlog/aichatlog-server/internal/output"
 )
 
 // ServerConfig is the full server configuration.

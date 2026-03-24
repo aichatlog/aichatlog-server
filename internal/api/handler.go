@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aichatlog/aichatlog/server/internal/config"
-	"github.com/aichatlog/aichatlog/server/internal/storage"
+	"github.com/aichatlog/aichatlog-server/internal/config"
+	"github.com/aichatlog/aichatlog-server/internal/storage"
 )
 
 // Extractor is the interface for manual extraction triggers.

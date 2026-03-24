@@ -11,7 +11,7 @@ import (
 	"log"
 	"strings"
 
-	"github.com/aichatlog/aichatlog/server/internal/storage"
+	"github.com/aichatlog/aichatlog-server/internal/storage"
 )
 
 // Server implements the MCP protocol over stdin/stdout.

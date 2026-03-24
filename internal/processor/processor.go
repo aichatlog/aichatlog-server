@@ -5,8 +5,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/aichatlog/aichatlog/server/internal/output"
-	"github.com/aichatlog/aichatlog/server/internal/storage"
+	"github.com/aichatlog/aichatlog-server/internal/output"
+	"github.com/aichatlog/aichatlog-server/internal/storage"
 )
 
 // Processor is a background worker that processes received conversations

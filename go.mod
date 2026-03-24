@@ -1,4 +1,4 @@
-module github.com/aichatlog/aichatlog/server
+module github.com/aichatlog/aichatlog-server
 
 go 1.24.2
 

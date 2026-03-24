@@ -12,14 +12,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/aichatlog/aichatlog/server/internal/api"
-	"github.com/aichatlog/aichatlog/server/internal/config"
-	"github.com/aichatlog/aichatlog/server/internal/llm"
-	"github.com/aichatlog/aichatlog/server/internal/mcp"
-	"github.com/aichatlog/aichatlog/server/internal/output"
-	"github.com/aichatlog/aichatlog/server/internal/processor"
-	"github.com/aichatlog/aichatlog/server/internal/storage"
-	"github.com/aichatlog/aichatlog/server/web"
+	"github.com/aichatlog/aichatlog-server/internal/api"
+	"github.com/aichatlog/aichatlog-server/internal/config"
+	"github.com/aichatlog/aichatlog-server/internal/llm"
+	"github.com/aichatlog/aichatlog-server/internal/mcp"
+	"github.com/aichatlog/aichatlog-server/internal/output"
+	"github.com/aichatlog/aichatlog-server/internal/processor"
+	"github.com/aichatlog/aichatlog-server/internal/storage"
+	"github.com/aichatlog/aichatlog-server/web"
 )
 
 func main() {
