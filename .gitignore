@@ -1,5 +1,6 @@
-aichatlog-server
+.DS_Store
 *.db
 *.db-shm
 *.db-wal
 data/
+aichatlog-server
