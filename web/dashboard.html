@@ -944,8 +944,8 @@ async function loadSettings() {
     br.append(tb,fb,st);c2.appendChild(br);
     tb.onclick=async()=>{st.textContent=t('testing');st.className='text-xs ml-2 text-amber-500';
       try{const r=await fetch('/api/llm/test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({adapter,base_url:getUrl(),api_key:getKey()})});const d=await r.json();
-        if(d.ok){st.textContent=t('connection_ok');st.className='text-xs ml-2 text-emerald-500';}
-        else{st.textContent=d.error||t('connection_failed');st.className='text-xs ml-2 text-red-500';}
+        if(d.ok){st.textContent=d.message||t('connection_ok');st.className='text-xs ml-2 text-emerald-500';}
+        else{st.textContent=d.error||d.message||t('connection_failed');st.className='text-xs ml-2 text-red-500';}
       }catch(e){st.textContent=t('connection_failed');st.className='text-xs ml-2 text-red-500';}};
     fb.onclick=async()=>{st.textContent=t('testing');st.className='text-xs ml-2 text-amber-500';
       try{const r=await fetch('/api/llm/models',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({adapter,base_url:getUrl(),api_key:getKey()})});const d=await r.json();
@@ -955,7 +955,7 @@ async function loadSettings() {
           d.models.forEach(m=>{const o=document.createElement('option');o.value=m;o.textContent=m;if(m===curVal)o.selected=true;sel.appendChild(o);});
           inp.replaceWith(sel);});
           st.textContent=d.models.length+' models';st.className='text-xs ml-2 text-emerald-500';}
-        else{st.textContent=d.error||t('connection_failed');st.className='text-xs ml-2 text-red-500';}
+        else{st.textContent=d.error||d.message||t('connection_failed');st.className='text-xs ml-2 text-red-500';}
       }catch(e){st.textContent=t('connection_failed');st.className='text-xs ml-2 text-red-500';}};
   }
   function renderLF(n){const c2=document.getElementById('sLFields');c2.replaceChildren();
