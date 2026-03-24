@@ -1,5 +1,10 @@
 # aichatlog-server
 
+[![CI](https://github.com/aichatlog/aichatlog-server/actions/workflows/ci.yml/badge.svg)](https://github.com/aichatlog/aichatlog-server/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/tag/aichatlog/aichatlog-server?label=release)](https://github.com/aichatlog/aichatlog-server/releases)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+[![Go](https://img.shields.io/badge/go-%3E%3D1.22-00ADD8.svg)](https://go.dev/)
+
 English | [简体中文](README.zh-CN.md)
 
 Universal AI conversation hub. Receives conversations from any source via the ConversationObject protocol, stores them in SQLite, and provides a REST API for querying.
