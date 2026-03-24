@@ -16,7 +16,6 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16/dist/katex.min.css">
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16/dist/katex.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/markdown-it-texmath@1/texmath.min.js"></script>
-<!-- AICHATLOG_UI_JS_START -->
 <script>
 /* AIChatLog shared UI — single source of truth for both dashboards */
 (function() {
@@ -126,7 +125,6 @@
 })();
 
 </script>
-<!-- AICHATLOG_UI_JS_END -->
 <script>
 tailwind.config = {
   darkMode: 'class',
@@ -140,7 +138,6 @@ tailwind.config = {
 /* Constrain all lucide icons to inherit size from parent or default to 1em */
 [data-lucide] svg, svg[data-lucide], .lucide {width:1em;height:1em}
 </style>
-<!-- AICHATLOG_UI_CSS_START -->
 <style>
 /* AIChatLog shared UI styles — single source of truth for both dashboards */
 
@@ -148,8 +145,7 @@ tailwind.config = {
 .md-content{font-size:14px;line-height:1.7}
 .md-content h1,.md-content h2,.md-content h3{font-size:1em;font-weight:600;margin:0.5em 0 0.25em}
 .md-content p{margin:0.3em 0}
-.md-content ul{margin:0.3em 0;padding-left:1.5em;list-style-type:disc}
-.md-content ol{margin:0.3em 0;padding-left:1.5em;list-style-type:decimal}
+.md-content ul,.md-content ol{margin:0.3em 0;padding-left:1.5em}
 .md-content li{margin:0.1em 0}
 .md-content table{border-collapse:collapse;margin:0.5em 0;font-size:13px;width:100%}
 .md-content th,.md-content td{border:1px solid #d1d5db;padding:4px 10px;text-align:left}
@@ -171,7 +167,6 @@ tailwind.config = {
 ::-webkit-scrollbar-thumb{background:#64748b;border-radius:3px}
 
 </style>
-<!-- AICHATLOG_UI_CSS_END -->
 </head>
 <body class="bg-gray-50 dark:bg-slate-950 text-gray-900 dark:text-slate-100 min-h-screen antialiased transition-colors duration-200">
 
@@ -437,6 +432,29 @@ function updateThemeButtons() { AIChatLogUI.updateThemeButtons(); }
 const PAGE_SIZE = 50;
 let state = {filter:'',query:'',sort:'started_at',order:'desc',offset:0};
 let searchTimer = null;
+
+// ── Router ──
+const router = {
+  routes: {conversations:/^\/conversations\/?$/,knowledge:/^\/knowledge\/?$/,timeline:/^\/timeline\/?$/,settings:/^\/settings\/?$/,detail:/^\/conversations\/(.+)$/},
+  parse(path) {
+    path = path || location.pathname;
+    for (const [name, re] of Object.entries(this.routes)) {
+      const m = path.match(re);
+      if (m) {
+        if (name === 'detail') return { tab: 'conversations', detailId: decodeURIComponent(m[1]) };
+        return { tab: name, detailId: null };
+      }
+    }
+    return { tab: 'conversations', detailId: null };
+  },
+  push(path) { if (location.pathname !== path) history.pushState(null, '', path); },
+  replace(path) { if (location.pathname !== path) history.replaceState(null, '', path); }
+};
+window.addEventListener('popstate', () => {
+  const { tab, detailId } = router.parse();
+  switchTab(tab, true);
+  if (detailId) showDetail(detailId); else closeModal(true);
+});
 async function api(path) { return (await fetch('/api'+path)).json(); }
 function esc(s) { if(!s)return''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 
@@ -675,17 +693,19 @@ async function showDetail(id,scrollToTurn) {
   actions.id = 'modalActions';
   container.after(actions);
   document.getElementById('modal').classList.add('open');
+  router.push('/conversations/' + encodeURIComponent(id));
   lucide.createIcons();
   if(scrollTarget)setTimeout(()=>{scrollTarget.scrollIntoView({behavior:'smooth',block:'center'});scrollTarget.classList.add('ring-2','ring-blue-400');setTimeout(()=>scrollTarget.classList.remove('ring-2','ring-blue-400'),2000);},100);
 }
-function closeModal(){document.getElementById('modal').classList.remove('open');}
+function closeModal(skipPush){const m=document.getElementById('modal');const wasOpen=m.classList.contains('open');m.classList.remove('open');if(wasOpen&&!skipPush&&router.parse().detailId)router.push('/conversations');}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 
 // ── Tabs ──
-function switchTab(name) {
+function switchTab(name, skipPush) {
   document.querySelectorAll('.tab-btn').forEach(b=>{const a=b.getAttribute('data-i18n')===name;b.classList.toggle('!text-blue-500',a);b.classList.toggle('!border-b-2',a);b.classList.toggle('!border-blue-500',a);});
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.id==='tab-'+name));
   if(name==='knowledge')loadKnowledge(); if(name==='timeline')loadTimeline(); if(name==='settings')loadSettings();
+  if(!skipPush)router.push(name==='conversations'?'/conversations':'/'+name);
 }
 let knowledgeType='';
 function setKnowledgeType(btn,type){knowledgeType=type;setFilter(btn,type);loadKnowledge();}
@@ -1111,7 +1131,9 @@ async function initDashboard() {
   try{const cfg=await api('/config');if(cfg.lang&&STRINGS[cfg.lang])currentLang=cfg.lang;}catch(e){}
   currentTheme=localStorage.getItem('aichatlog-theme')||'auto';
   applyTheme(); updateThemeButtons(); applyI18n(); updateLangButtons();
-  switchTab('conversations'); loadStats(); loadConversations();
+  const {tab:initTab,detailId:initDetail}=router.parse();
+  switchTab(initTab,true); loadStats(); loadConversations();
+  if(initDetail)showDetail(initDetail);
   addLogoutButton();
   lucide.createIcons();
 }

@@ -118,8 +118,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 
 	// Whitelist: always allow
-	if authWhitelist[path] || path == "/" || path == "/favicon.ico" {
+	if authWhitelist[path] || path == "/favicon.ico" {
 		h.mux.ServeHTTP(w, r)
+		return
+	}
+	// Dashboard routes: non-API GET requests serve the SPA
+	if r.Method == "GET" && !strings.HasPrefix(path, "/api/") {
+		h.handleDashboard(w, r)
 		return
 	}
 
