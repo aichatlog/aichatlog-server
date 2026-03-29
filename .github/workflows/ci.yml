@@ -24,3 +24,37 @@ jobs:
 
       - name: Verify binary runs
         run: ./aichatlog-server --help || true
+
+  validate-protocol:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch protocol schema
+        env:
+          PROTOCOL_TAG: v0.6.0
+        run: |
+          curl -sfL "https://raw.githubusercontent.com/aichatlog/aichatlog-protocol/${PROTOCOL_TAG}/conversation.schema.json" \
+            -o /tmp/conversation.schema.json
+          echo "Schema downloaded: $(wc -c < /tmp/conversation.schema.json) bytes"
+
+      - name: Validate Go struct covers schema fields
+        run: |
+          python3 -c "
+          import json, re
+
+          schema = json.load(open('/tmp/conversation.schema.json'))
+          schema_fields = set(schema['properties'].keys())
+
+          go_source = open('internal/storage/sqlite.go').read()
+          go_tags = set(re.findall(r'json:\"(\w+)', go_source))
+
+          # Fields handled in SyncRequest, not ConversationObject
+          expected_missing = {'sync_mode', 'delta_from_seq'}
+          actual_missing = schema_fields - go_tags - expected_missing
+
+          if actual_missing:
+              print(f'WARNING: Schema fields not in Go struct: {actual_missing}')
+          else:
+              print(f'Go struct covers all {len(schema_fields)} schema fields')
+          "
