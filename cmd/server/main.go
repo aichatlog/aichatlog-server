@@ -49,6 +49,11 @@ func main() {
 	if v := os.Getenv("AICHATLOG_TOKEN"); v != "" {
 		*token = v
 	}
+	// Dev mode: use a built-in test token if none is configured
+	if *token == "" && os.Getenv("AICHATLOG_DEV") != "" {
+		*token = "dev-test-token"
+		log.Println("Dev mode: using built-in test token \"dev-test-token\"")
+	}
 
 	if *configPath == "" {
 		*configPath = filepath.Join(*dataDir, "config.json")

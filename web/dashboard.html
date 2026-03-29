@@ -75,8 +75,35 @@
   // Note: Uses DOMPurify.sanitize() to prevent XSS before setting innerHTML
   function renderContent(parent, text, md) {
     if (!text) return;
+    // Extract tool blocks as placeholders before XML/markdown processing
+    var toolBlocks = [];
+    text = text.replace(
+      /\*\*Tool: (\w+)\*\*\n([\s\S]*?)(?:\n\n<!-- tool_result -->\n([\s\S]*?)\n<!-- \/tool_result -->)/g,
+      function(_, name, params, result) {
+        var i = toolBlocks.length;
+        toolBlocks.push({n: name, p: params.trim().replace(/\n/g, ', ').replace(/\s{2,}/g, ' '), r: result});
+        return '\n\nTOOLBLK' + i + 'END\n\n';
+      }
+    );
+    text = text.replace(
+      /<!-- tool_result -->\n([\s\S]*?)\n<!-- \/tool_result -->/g,
+      function(_, result) {
+        var i = toolBlocks.length;
+        toolBlocks.push({n: 'Tool Result', p: '', r: result});
+        return '\n\nTOOLBLK' + i + 'END\n\n';
+      }
+    );
     text = stripXmlTags(text);
-    var sanitized = DOMPurify.sanitize(md.render(text));
+    var html = DOMPurify.sanitize(md.render(text));
+    // Inject tool blocks back as <details> elements
+    toolBlocks.forEach(function(b, i) {
+      var inner = DOMPurify.sanitize(md.render(b.r));
+      var det = '<details class="tool-block"><summary><strong>' + b.n + '</strong>' +
+        (b.p ? ' <span class="tool-params">' + b.p + '</span>' : '') +
+        '</summary><div class="tool-body">' + inner + '</div></details>';
+      html = html.replace('<p>TOOLBLK' + i + 'END</p>', det).replace('TOOLBLK' + i + 'END', det);
+    });
+    var sanitized = html;
     var div = document.createElement('div');
     div.className = 'md-content';
     div.innerHTML = sanitized;
@@ -161,6 +188,53 @@ tailwind.config = {
 .md-content .katex{font-size:1.1em}
 .md-content .task-list-item{list-style:none;margin-left:-1em}
 .md-content .task-list-item input{margin-right:0.5em}
+
+/* Code syntax — light mode */
+.md-content pre{background:#f8f8f8;color:#383a42}
+.hljs-keyword,.hljs-built_in,.hljs-type{color:#a626a4}
+.hljs-string,.hljs-regexp{color:#50a14f}
+.hljs-number,.hljs-literal{color:#986801}
+.hljs-comment,.hljs-quote{color:#a0a1a7;font-style:italic}
+.hljs-function .hljs-title,.hljs-title.function_{color:#4078f2}
+.hljs-variable,.hljs-attr,.hljs-property{color:#e45649}
+.hljs-class .hljs-title,.hljs-title.class_{color:#c18401}
+.hljs-tag{color:#4078f2}
+.hljs-name{color:#a626a4}
+.hljs-attribute{color:#986801}
+.hljs-selector-class,.hljs-selector-id{color:#50a14f}
+.hljs-params{color:#383a42}
+.hljs-meta,.hljs-meta .hljs-keyword{color:#e45649}
+.hljs-symbol,.hljs-bullet{color:#c18401}
+.hljs-addition{color:#50a14f;background:rgba(80,161,79,0.1)}
+.hljs-deletion{color:#e45649;background:rgba(228,86,73,0.1)}
+/* Code syntax — dark mode */
+.dark .md-content pre{background:#1e1e2e;color:#cdd6f4}
+.dark .hljs-keyword,.dark .hljs-built_in,.dark .hljs-type{color:#cba6f7}
+.dark .hljs-string,.dark .hljs-regexp{color:#a6e3a1}
+.dark .hljs-number,.dark .hljs-literal{color:#fab387}
+.dark .hljs-comment,.dark .hljs-quote{color:#7f849c}
+.dark .hljs-function .hljs-title,.dark .hljs-title.function_{color:#89b4fa}
+.dark .hljs-variable,.dark .hljs-attr,.dark .hljs-property{color:#89dceb}
+.dark .hljs-class .hljs-title,.dark .hljs-title.class_{color:#f9e2af}
+.dark .hljs-tag{color:#89b4fa}
+.dark .hljs-name{color:#cba6f7}
+.dark .hljs-attribute{color:#fab387}
+.dark .hljs-selector-class,.dark .hljs-selector-id{color:#a6e3a1}
+.dark .hljs-params{color:#f2cdcd}
+.dark .hljs-meta,.dark .hljs-meta .hljs-keyword{color:#f38ba8}
+.dark .hljs-symbol,.dark .hljs-bullet{color:#f9e2af}
+.dark .hljs-addition{color:#a6e3a1;background:rgba(166,227,161,0.1)}
+.dark .hljs-deletion{color:#f38ba8;background:rgba(243,139,168,0.1)}
+
+/* Tool call blocks */
+.tool-block{border:1px solid #e5e7eb;border-radius:6px;margin:6px 0}
+.dark .tool-block{border-color:#374151}
+.tool-block summary{padding:6px 10px;cursor:pointer;list-style:none;font-size:13px}
+.tool-block summary::-webkit-details-marker{display:none}
+.tool-block .tool-params{opacity:0.6;font-size:12px}
+.tool-block[open]>summary{border-bottom:1px solid #e5e7eb}
+.dark .tool-block[open]>summary{border-bottom-color:#374151}
+.tool-block>:not(summary){padding:4px 10px;max-height:300px;overflow-y:auto}
 
 /* Scrollbar */
 ::-webkit-scrollbar{width:6px}

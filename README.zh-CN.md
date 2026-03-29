@@ -20,6 +20,9 @@ docker compose up -d
 ```bash
 CGO_CFLAGS="-DSQLITE_ENABLE_FTS5" go build -o aichatlog-server ./cmd/server
 ./aichatlog-server --port 8080 --token your-secret-token
+
+# 或使用 make 进行开发（dashboard 热加载，内置测试 token）
+make dev
 ```
 
 ### MCP 模式
@@ -85,6 +88,7 @@ CGO_CFLAGS="-DSQLITE_ENABLE_FTS5" go build -o aichatlog-server ./cmd/server
 | `--data` | `AICHATLOG_DATA` | `data` | 数据目录 |
 | `--token` | `AICHATLOG_TOKEN` | *（无）* | Bearer 认证 Token |
 | `--config` | — | `<data>/config.json` | 配置文件路径 |
+| — | `AICHATLOG_DEV` | *（无）* | 开发模式：dashboard 从磁盘读取，内置测试 token |
 
 ### config.json 示例
 

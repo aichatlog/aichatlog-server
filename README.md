@@ -25,6 +25,9 @@ Server runs on `http://localhost:8080`.
 ```bash
 go build -o aichatlog-server ./cmd/server
 ./aichatlog-server --port 8080 --token your-secret-token
+
+# Or use make for development (dashboard hot-reload, built-in test token)
+make dev
 ```
 
 ## API
@@ -64,3 +67,4 @@ The `source` field identifies the AI tool (`claude-code`, `chatgpt`, `gemini`, e
 | `--db` | `AICHATLOG_DB` | `aichatlog.db` | SQLite database path |
 | `--data` | `AICHATLOG_DATA` | `data` | Data directory |
 | `--token` | `AICHATLOG_TOKEN` | *(none)* | Bearer token for auth |
+| — | `AICHATLOG_DEV` | *(none)* | Dev mode: dashboard from disk, built-in test token |

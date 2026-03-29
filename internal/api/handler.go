@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -198,6 +199,12 @@ func requireAdmin(w http.ResponseWriter, r *http.Request) *storage.User {
 
 func (h *Handler) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if os.Getenv("AICHATLOG_DEV") != "" {
+		if data, err := os.ReadFile("web/dashboard.html"); err == nil {
+			w.Write(data)
+			return
+		}
+	}
 	w.Write(h.dashboard)
 }
 

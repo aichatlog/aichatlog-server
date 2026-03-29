@@ -8,6 +8,9 @@ Go REST API + MCP server for AIChatLog.
 CGO_CFLAGS="-DSQLITE_ENABLE_FTS5" go build -o aichatlog-server ./cmd/server
 ./aichatlog-server
 
+# Development (dashboard hot-reload from disk, built-in test token)
+make dev
+
 # MCP mode
 ./aichatlog-server mcp --db /path/to/aichatlog.db
 ```
@@ -17,7 +20,7 @@ CGO_CFLAGS="-DSQLITE_ENABLE_FTS5" go build -o aichatlog-server ./cmd/server
 - Single dependency: `github.com/mattn/go-sqlite3`
 - Module path: `github.com/aichatlog/aichatlog-server`
 - Build requires: `CGO_CFLAGS="-DSQLITE_ENABLE_FTS5"` for full-text search
-- Env vars: `AICHATLOG_PORT`, `AICHATLOG_DB`, `AICHATLOG_DATA`, `AICHATLOG_TOKEN`
+- Env vars: `AICHATLOG_PORT`, `AICHATLOG_DB`, `AICHATLOG_DATA`, `AICHATLOG_TOKEN`, `AICHATLOG_DEV`
 - Error handling: `(result, error)` tuples, wrap with `fmt.Errorf`
 - SQL: dynamic query building with `?` placeholders
 - Database: 6 tables (conversations, messages, tags, extractions, output_sync, process_queue) + FTS5
