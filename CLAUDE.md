@@ -8,8 +8,9 @@ Go REST API + MCP server for AIChatLog.
 CGO_CFLAGS="-DSQLITE_ENABLE_FTS5" go build -o aichatlog-server ./cmd/server
 ./aichatlog-server
 
-# Development (dashboard hot-reload from disk, built-in test token)
+# Development (dashboard + shared UI hot-reload from disk, built-in test token)
 make dev
+# Dev mode serves /static/aichatlog-*.css|js from ../aichatlog-protocol/web/
 
 # MCP mode
 ./aichatlog-server mcp --db /path/to/aichatlog.db

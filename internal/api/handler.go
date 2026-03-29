@@ -53,6 +53,11 @@ func NewHandler(store *storage.Store, token string, dashboardHTML []byte, favico
 		})
 	}
 
+	// Dev mode: serve shared UI components from local protocol repo
+	if os.Getenv("AICHATLOG_DEV") != "" {
+		mux.HandleFunc("GET /static/", h.handleDevStatic)
+	}
+
 	mux.HandleFunc("GET /api/health", h.handleHealth)
 	mux.HandleFunc("GET /api/conversations", h.handleListConversations)
 	mux.HandleFunc("GET /api/conversations/{id}", h.handleGetConversation)
@@ -119,12 +124,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 
 	// Whitelist: always allow
-	if authWhitelist[path] || path == "/favicon.ico" {
+	if authWhitelist[path] || path == "/favicon.ico" || strings.HasPrefix(path, "/static/") {
 		h.mux.ServeHTTP(w, r)
 		return
 	}
-	// Dashboard routes: non-API GET requests serve the SPA
-	if r.Method == "GET" && !strings.HasPrefix(path, "/api/") {
+	// Dashboard routes: non-API GET requests serve the SPA (skip /static/ in dev mode)
+	if r.Method == "GET" && !strings.HasPrefix(path, "/api/") && !strings.HasPrefix(path, "/static/") {
 		h.handleDashboard(w, r)
 		return
 	}
@@ -201,11 +206,34 @@ func (h *Handler) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if os.Getenv("AICHATLOG_DEV") != "" {
 		if data, err := os.ReadFile("web/dashboard.html"); err == nil {
-			w.Write(data)
+			// Replace CDN URLs with local /static/ paths for dev hot-reload
+			html := strings.ReplaceAll(string(data),
+				"https://cdn.jsdelivr.net/gh/aichatlog/aichatlog-protocol@main/web/",
+				"/static/")
+			w.Write([]byte(html))
 			return
 		}
 	}
 	w.Write(h.dashboard)
+}
+
+func (h *Handler) handleDevStatic(w http.ResponseWriter, r *http.Request) {
+	name := strings.TrimPrefix(r.URL.Path, "/static/")
+	if name == "" || strings.Contains(name, "..") {
+		http.NotFound(w, r)
+		return
+	}
+	data, err := os.ReadFile("../aichatlog-protocol/web/" + name)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if strings.HasSuffix(name, ".css") {
+		w.Header().Set("Content-Type", "text/css")
+	} else if strings.HasSuffix(name, ".js") {
+		w.Header().Set("Content-Type", "application/javascript")
+	}
+	w.Write(data)
 }
 
 func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
