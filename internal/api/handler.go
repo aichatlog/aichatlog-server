@@ -80,6 +80,10 @@ func NewHandler(store *storage.Store, token string, dashboardHTML []byte, favico
 	mux.HandleFunc("POST /api/llm/test", h.handleLLMTest)
 	mux.HandleFunc("POST /api/llm/models", h.handleLLMModels)
 
+	// File storage
+	mux.HandleFunc("POST /api/files/upload", h.handleFileUpload)
+	mux.HandleFunc("GET /api/files/{convID}/{filename}", h.handleFileServe)
+
 	// Auth endpoints
 	mux.HandleFunc("GET /api/auth/status", h.handleAuthStatus)
 	mux.HandleFunc("POST /api/auth/setup", h.handleAuthSetup)
@@ -1069,4 +1073,68 @@ func intParam(s string, def int) int {
 		return v
 	}
 	return def
+}
+
+// ── File Upload & Serve ──
+
+// handleFileUpload accepts a multipart file upload and stores it on disk.
+// Fields: source, device, session_id (to compute conversation ID), file (binary).
+func (h *Handler) handleFileUpload(w http.ResponseWriter, r *http.Request) {
+	// Limit request body to 10 MB
+	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
+
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		jsonError(w, "invalid multipart form or file too large", http.StatusBadRequest)
+		return
+	}
+
+	source := r.FormValue("source")
+	device := r.FormValue("device")
+	sessionID := r.FormValue("session_id")
+	if source == "" || sessionID == "" {
+		jsonError(w, "source and session_id are required", http.StatusBadRequest)
+		return
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		jsonError(w, "file field is required", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	data, err := io.ReadAll(file)
+	if err != nil {
+		jsonError(w, "failed to read file", http.StatusInternalServerError)
+		return
+	}
+
+	convID := storage.GenerateID(source, device, sessionID)
+	urlPath, err := h.store.SaveFile(convID, header.Filename, data)
+	if err != nil {
+		jsonError(w, "failed to save file: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"ok":  true,
+		"url": urlPath,
+	})
+}
+
+// handleFileServe serves a stored file from disk with caching headers.
+func (h *Handler) handleFileServe(w http.ResponseWriter, r *http.Request) {
+	convID := r.PathValue("convID")
+	filename := r.PathValue("filename")
+
+	filePath, err := h.store.GetFilePath(convID, filename)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	// Content-addressed filenames (SHA256) are immutable
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	http.ServeFile(w, r, filePath)
 }

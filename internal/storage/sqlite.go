@@ -1413,6 +1413,7 @@ func (s *Store) SoftDelete(id string) error {
 		return err
 	}
 	s.db.Exec("DELETE FROM turns_fts WHERE conversation_id = ?", id)
+	s.CleanupFiles(id)
 	return nil
 }
 
@@ -1932,4 +1933,63 @@ func ftsEscape(q string) string {
 // ToJSON serializes a ConversationObject to JSON bytes.
 func ToJSON(conv *ConversationObject) ([]byte, error) {
 	return json.Marshal(conv)
+}
+
+// ── File Storage ──
+
+// GenerateID exposes the deterministic conversation ID generator for use by API handlers.
+func GenerateID(source, device, sessionID string) string {
+	return generateID(source, device, sessionID)
+}
+
+// SaveFile writes a file to disk under {dataDir}/files/{convID}/{sha256}.{ext}.
+// Returns the URL path "/api/files/{convID}/{sha256}.{ext}".
+// Idempotent: same content produces the same path (SHA256 dedup per conversation).
+func (s *Store) SaveFile(convID, originalName string, data []byte) (string, error) {
+	// Compute SHA256 of file content
+	h := sha256.Sum256(data)
+	hash := hex.EncodeToString(h[:])
+
+	// Determine extension from original filename
+	ext := filepath.Ext(originalName)
+	if ext == "" {
+		ext = ".bin"
+	}
+	storedName := hash + ext
+
+	dir := filepath.Join(s.dataDir, "files", convID)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", fmt.Errorf("create file directory: %w", err)
+	}
+
+	dst := filepath.Join(dir, storedName)
+	// Skip write if file already exists (dedup)
+	if _, err := os.Stat(dst); err != nil {
+		if err := os.WriteFile(dst, data, 0o644); err != nil {
+			return "", fmt.Errorf("write file: %w", err)
+		}
+	}
+
+	return "/api/files/" + convID + "/" + storedName, nil
+}
+
+// GetFilePath returns the absolute disk path for a stored file.
+// Validates inputs to prevent path traversal.
+func (s *Store) GetFilePath(convID, filename string) (string, error) {
+	// Reject path traversal attempts
+	if strings.Contains(convID, "..") || strings.Contains(filename, "..") ||
+		strings.Contains(convID, "/") || strings.Contains(filename, "/") {
+		return "", fmt.Errorf("invalid path")
+	}
+	p := filepath.Join(s.dataDir, "files", convID, filename)
+	if _, err := os.Stat(p); err != nil {
+		return "", fmt.Errorf("file not found")
+	}
+	return p, nil
+}
+
+// CleanupFiles removes all stored files for a conversation.
+func (s *Store) CleanupFiles(convID string) {
+	dir := filepath.Join(s.dataDir, "files", convID)
+	os.RemoveAll(dir)
 }
