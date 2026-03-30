@@ -69,6 +69,8 @@ tailwind.config = {
       <i data-lucide="brain" class="w-4 h-4"></i> Knowledge</button>
     <button type="button" class="tab-btn flex items-center gap-2 px-4 py-2 text-sm rounded-t-lg text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800/50 transition-colors" onclick="switchTab('timeline')" data-i18n="timeline">
       <i data-lucide="clock" class="w-4 h-4"></i> Timeline</button>
+    <button type="button" class="tab-btn flex items-center gap-2 px-4 py-2 text-sm rounded-t-lg text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800/50 transition-colors" onclick="switchTab('files')" data-i18n="files">
+      <i data-lucide="paperclip" class="w-4 h-4"></i> Files</button>
     <button type="button" class="tab-btn flex items-center gap-2 px-4 py-2 text-sm rounded-t-lg text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800/50 transition-colors" onclick="switchTab('settings')" data-i18n="settings">
       <i data-lucide="settings" class="w-4 h-4"></i> Settings</button>
   </nav>
@@ -130,6 +132,7 @@ tailwind.config = {
     <div id="knowledgeList"></div>
   </div>
   <div id="tab-timeline" class="tab-panel"><div id="timelineList"></div></div>
+  <div id="tab-files" class="tab-panel"><div id="filesContent"></div></div>
   <div id="tab-settings" class="tab-panel"><div id="settingsContent"></div></div>
 </div>
 
@@ -149,7 +152,7 @@ tailwind.config = {
 // ── i18n ──
 const STRINGS = {
   en: {
-    conversations:'Conversations', knowledge:'Knowledge', timeline:'Timeline', settings:'Settings',
+    conversations:'Conversations', knowledge:'Knowledge', timeline:'Timeline', files:'Files', settings:'Settings',
     search:'Search conversations...', all:'All', received:'Received', synced:'Synced', ignored:'Ignored',
     date:'Date', title:'Title', project:'Project', source:'Source', model:'Model',
     msgs:'Msgs', words:'Words', tokens:'Tokens', status:'Status',
@@ -192,7 +195,7 @@ const STRINGS = {
     confirm_delete_user:'Delete this user?', cannot_delete_self:'Cannot delete yourself',
   },
   'zh-CN': {
-    conversations:'对话', knowledge:'知识库', timeline:'时间线', settings:'设置',
+    conversations:'对话', knowledge:'知识库', timeline:'时间线', files:'附件', settings:'设置',
     search:'搜索对话...', all:'全部', received:'已接收', synced:'已同步', ignored:'已忽略',
     date:'日期', title:'标题', project:'项目', source:'来源', model:'模型',
     msgs:'消息', words:'字数', tokens:'Token', status:'状态',
@@ -232,7 +235,7 @@ const STRINGS = {
     confirm_delete_user:'确定删除此用户？', cannot_delete_self:'不能删除自己',
   },
   'zh-TW': {
-    conversations:'對話', knowledge:'知識庫', timeline:'時間線', settings:'設定',
+    conversations:'對話', knowledge:'知識庫', timeline:'時間線', files:'附件', settings:'設定',
     search:'搜尋對話...', all:'全部', received:'已接收', synced:'已同步', ignored:'已忽略',
     date:'日期', title:'標題', project:'專案', source:'來源', model:'模型',
     msgs:'訊息', words:'字數', tokens:'Token', status:'狀態',
@@ -566,7 +569,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 function switchTab(name, skipPush) {
   document.querySelectorAll('.tab-btn').forEach(b=>{const a=b.getAttribute('data-i18n')===name;b.classList.toggle('!text-blue-500',a);b.classList.toggle('!border-b-2',a);b.classList.toggle('!border-blue-500',a);});
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.id==='tab-'+name));
-  if(name==='knowledge')loadKnowledge(); if(name==='timeline')loadTimeline(); if(name==='settings')loadSettings();
+  if(name==='knowledge')loadKnowledge(); if(name==='timeline')loadTimeline(); if(name==='files')loadFiles(); if(name==='settings')loadSettings();
   if(!skipPush)router.push(name==='conversations'?'/conversations':'/'+name);
 }
 let knowledgeType='';
@@ -777,6 +780,68 @@ async function loadTimelineTurns(append) {
     more.append(dot3,btn);container.appendChild(more);
   }
 }
+// ── Files Tab ──
+async function loadFiles() {
+  const container=document.getElementById('filesContent'); container.replaceChildren();
+  const files=await api('/files');
+  if(!files||!files.length){container.innerHTML=`<div class="${C.empty}">No files yet. Capture a conversation with attachments.</div>`;return;}
+  // Stats bar
+  const totalSize=files.reduce((s,f)=>s+f.size,0);
+  const imgs=files.filter(f=>f.content_type.startsWith('image/'));
+  const docs=files.filter(f=>!f.content_type.startsWith('image/'));
+  const statsHtml=`<div class="flex gap-4 mb-4 text-sm text-gray-500 dark:text-slate-400">
+    <span>${files.length} files</span><span>${imgs.length} images</span><span>${docs.length} documents</span>
+    <span>${formatSize(totalSize)}</span></div>`;
+  container.insertAdjacentHTML('beforeend',statsHtml);
+  // Grid
+  const grid=document.createElement('div');
+  grid.className='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3';
+  files.forEach(function(f){
+    const isImg=f.content_type.startsWith('image/');
+    const card=document.createElement('div');
+    card.className='group rounded-xl border border-gray-200 dark:border-slate-700/50 bg-white dark:bg-slate-800/50 overflow-hidden hover:border-blue-400 dark:hover:border-blue-500/50 transition-colors cursor-pointer';
+    const preview=isImg
+      ? `<div class="aspect-square bg-gray-50 dark:bg-slate-800 flex items-center justify-center overflow-hidden"><img src="${f.url}" alt="${esc(f.filename)}" class="w-full h-full object-cover" loading="lazy"></div>`
+      : `<div class="aspect-square bg-gray-50 dark:bg-slate-800 flex items-center justify-center text-3xl">${fileIcon(f.filename)}</div>`;
+    const info=`<div class="p-2.5">
+      <div class="text-xs font-medium text-gray-800 dark:text-slate-200 truncate" title="${esc(f.filename)}">${esc(f.filename.length>20?f.filename.slice(0,8)+'…'+f.filename.slice(-8):f.filename)}</div>
+      <div class="text-[10px] text-gray-400 dark:text-slate-500 mt-0.5 truncate">${esc(f.conv_title||f.conversation_id)}</div>
+      <div class="flex items-center justify-between mt-1">
+        <span class="text-[10px] text-gray-400 dark:text-slate-500">${formatSize(f.size)}</span>
+        <button onclick="event.stopPropagation();deleteFile('${f.conversation_id}','${f.filename}')" class="opacity-0 group-hover:opacity-100 text-[10px] text-red-400 hover:text-red-500 transition-opacity">✕</button>
+      </div></div>`;
+    card.innerHTML=preview+info;
+    card.addEventListener('click',function(){
+      if(isImg){openLightbox(f.url,f.filename);}
+      else{window.open(f.url,'_blank');}
+    });
+    grid.appendChild(card);
+  });
+  container.appendChild(grid);
+}
+function fileIcon(name){
+  const ext=(name.includes('.')?name.split('.').pop():'').toLowerCase();
+  const m={js:'📜',jsx:'📜',ts:'📜',tsx:'📜',py:'🐍',go:'📜',md:'📝',txt:'📝',json:'📋',docx:'📄',doc:'📄',pdf:'📄',xlsx:'📊',csv:'📊',png:'🖼️',jpg:'🖼️',jpeg:'🖼️',gif:'🖼️',webp:'🖼️',sh:'⚙️',sql:'🗃️'};
+  return m[ext]||'📎';
+}
+function formatSize(bytes){
+  if(bytes<1024)return bytes+'B';
+  if(bytes<1024*1024)return(bytes/1024).toFixed(1)+'KB';
+  return(bytes/(1024*1024)).toFixed(1)+'MB';
+}
+function openLightbox(src,alt){
+  var o=document.createElement('div');o.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;cursor:zoom-out;animation:lb-in .15s ease';
+  var img=document.createElement('img');img.src=src;img.alt=alt||'';img.style.cssText='max-width:90vw;max-height:90vh;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.5)';
+  o.appendChild(img);o.addEventListener('click',function(){o.remove();});
+  document.addEventListener('keydown',function onK(e){if(e.key==='Escape'){o.remove();document.removeEventListener('keydown',onK);}});
+  document.body.appendChild(o);
+}
+async function deleteFile(convID,filename){
+  if(!confirm('Delete this file?'))return;
+  await api('/files/'+convID+'/'+filename,{method:'DELETE'});
+  loadFiles();
+}
+function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
 async function loadSettings() {
   const cfg=await api('/config'), summary=await api('/stats/summary');
   const f=document.getElementById('settingsContent'); f.replaceChildren();

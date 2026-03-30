@@ -81,7 +81,9 @@ func NewHandler(store *storage.Store, token string, dashboardHTML []byte, favico
 	mux.HandleFunc("POST /api/llm/models", h.handleLLMModels)
 
 	// File storage
+	mux.HandleFunc("GET /api/files", h.handleListFiles)
 	mux.HandleFunc("POST /api/files/upload", h.handleFileUpload)
+	mux.HandleFunc("DELETE /api/files/{convID}/{filename}", h.handleDeleteFile)
 	mux.HandleFunc("GET /api/files/{convID}/{filename}", h.handleFileServe)
 
 	// Auth endpoints
@@ -1137,4 +1139,27 @@ func (h *Handler) handleFileServe(w http.ResponseWriter, r *http.Request) {
 	// Content-addressed filenames (SHA256) are immutable
 	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	http.ServeFile(w, r, filePath)
+}
+
+// handleListFiles returns all stored files with conversation context.
+func (h *Handler) handleListFiles(w http.ResponseWriter, r *http.Request) {
+	files, err := h.store.ListFiles()
+	if err != nil {
+		jsonError(w, "failed to list files: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(files)
+}
+
+// handleDeleteFile removes a single stored file.
+func (h *Handler) handleDeleteFile(w http.ResponseWriter, r *http.Request) {
+	convID := r.PathValue("convID")
+	filename := r.PathValue("filename")
+	if err := h.store.DeleteFile(convID, filename); err != nil {
+		jsonError(w, "failed to delete file: "+err.Error(), http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"ok": true})
 }

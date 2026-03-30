@@ -1993,3 +1993,108 @@ func (s *Store) CleanupFiles(convID string) {
 	dir := filepath.Join(s.dataDir, "files", convID)
 	os.RemoveAll(dir)
 }
+
+// FileInfo describes a stored file with its conversation context.
+type FileInfo struct {
+	ConversationID string `json:"conversation_id"`
+	ConvTitle      string `json:"conv_title"`
+	ConvSource     string `json:"conv_source"`
+	Filename       string `json:"filename"`
+	Size           int64  `json:"size"`
+	ContentType    string `json:"content_type"`
+	URL            string `json:"url"`
+	CreatedAt      string `json:"created_at"`
+}
+
+// ListFiles scans the files directory and returns metadata for all stored files,
+// enriched with conversation title/source from the database.
+func (s *Store) ListFiles() ([]FileInfo, error) {
+	filesDir := filepath.Join(s.dataDir, "files")
+	if _, err := os.Stat(filesDir); os.IsNotExist(err) {
+		return []FileInfo{}, nil
+	}
+
+	var files []FileInfo
+	convDirs, err := os.ReadDir(filesDir)
+	if err != nil {
+		return nil, fmt.Errorf("read files directory: %w", err)
+	}
+
+	for _, cd := range convDirs {
+		if !cd.IsDir() {
+			continue
+		}
+		convID := cd.Name()
+
+		// Look up conversation metadata
+		var title, source string
+		s.db.QueryRow("SELECT title, source_type FROM conversations WHERE id = ?", convID).Scan(&title, &source)
+
+		entries, err := os.ReadDir(filepath.Join(filesDir, convID))
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+			info, err := entry.Info()
+			if err != nil {
+				continue
+			}
+			name := entry.Name()
+			ext := filepath.Ext(name)
+			ct := "application/octet-stream"
+			switch strings.ToLower(ext) {
+			case ".png":
+				ct = "image/png"
+			case ".jpg", ".jpeg":
+				ct = "image/jpeg"
+			case ".gif":
+				ct = "image/gif"
+			case ".webp":
+				ct = "image/webp"
+			case ".svg":
+				ct = "image/svg+xml"
+			case ".pdf":
+				ct = "application/pdf"
+			case ".doc":
+				ct = "application/msword"
+			case ".docx":
+				ct = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+			case ".md":
+				ct = "text/markdown"
+			case ".txt":
+				ct = "text/plain"
+			case ".json":
+				ct = "application/json"
+			case ".js", ".jsx", ".ts", ".tsx":
+				ct = "text/javascript"
+			}
+			files = append(files, FileInfo{
+				ConversationID: convID,
+				ConvTitle:      title,
+				ConvSource:     source,
+				Filename:       name,
+				Size:           info.Size(),
+				ContentType:    ct,
+				URL:            "/api/files/" + convID + "/" + name,
+				CreatedAt:      info.ModTime().Format("2006-01-02T15:04:05"),
+			})
+		}
+	}
+	// Sort by date descending
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].CreatedAt > files[j].CreatedAt
+	})
+	return files, nil
+}
+
+// DeleteFile removes a single stored file.
+func (s *Store) DeleteFile(convID, filename string) error {
+	p, err := s.GetFilePath(convID, filename)
+	if err != nil {
+		return err
+	}
+	return os.Remove(p)
+}
