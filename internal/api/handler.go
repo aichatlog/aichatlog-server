@@ -134,6 +134,18 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.mux.ServeHTTP(w, r)
 		return
 	}
+	// Public file serving: GET/HEAD /api/files/{convID}/{filename}
+	// File names are SHA256 hashes, effectively unguessable capability tokens.
+	// This enables <img src="/api/files/..."> in the dashboard without needing
+	// Bearer auth (which <img> tags cannot send).
+	if (r.Method == "GET" || r.Method == "HEAD") && strings.HasPrefix(path, "/api/files/") {
+		rest := strings.TrimPrefix(path, "/api/files/")
+		parts := strings.Split(rest, "/")
+		if len(parts) == 2 && parts[0] != "" && parts[1] != "" && parts[0] != "upload" {
+			h.mux.ServeHTTP(w, r)
+			return
+		}
+	}
 	// Dashboard routes: non-API GET requests serve the SPA (skip /static/ in dev mode)
 	if r.Method == "GET" && !strings.HasPrefix(path, "/api/") && !strings.HasPrefix(path, "/static/") {
 		h.handleDashboard(w, r)
