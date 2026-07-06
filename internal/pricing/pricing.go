@@ -48,10 +48,23 @@ func load() {
 		rates[k] = v
 	}
 	if raw := strings.TrimSpace(os.Getenv("AICHATLOG_PRICING")); raw != "" {
-		var override map[string]ModelRate
+		// Merge onto existing rates so a partial override (e.g. only "input")
+		// does not zero the field the user omitted. Pointers detect presence.
+		var override map[string]struct {
+			Input  *float64 `json:"input"`
+			Output *float64 `json:"output"`
+		}
 		if err := json.Unmarshal([]byte(raw), &override); err == nil {
 			for k, v := range override {
-				rates[strings.ToLower(k)] = v
+				k = strings.ToLower(k)
+				r := rates[k] // existing default, or zero value for a new family
+				if v.Input != nil {
+					r.Input = *v.Input
+				}
+				if v.Output != nil {
+					r.Output = *v.Output
+				}
+				rates[k] = r
 			}
 		}
 	}

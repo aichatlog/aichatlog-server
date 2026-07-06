@@ -55,38 +55,48 @@ func (q UsageQuery) wants(dim string) bool {
 	return false
 }
 
+// whereClause builds the shared filter conditions (+ bound args) for usage
+// queries over the conversation_model_usage (u) ⋈ conversations (c) join. All
+// conditions reference the c./u. aliases, so callers must have them in scope
+// (the u.model condition is only emitted when a model filter is set).
+func (q UsageQuery) whereClause() (conds []string, args []interface{}) {
+	conds = []string{"c.status != 'deleted'"}
+	if q.From != "" {
+		conds = append(conds, "c.usage_date >= ?")
+		args = append(args, q.From)
+	}
+	if q.To != "" {
+		conds = append(conds, "c.usage_date <= ?")
+		args = append(args, q.To)
+	}
+	if q.Project != "" {
+		conds = append(conds, "c.project = ?")
+		args = append(args, q.Project)
+	}
+	if q.Device != "" {
+		conds = append(conds, "c.device = ?")
+		args = append(args, q.Device)
+	}
+	if q.Model != "" {
+		conds = append(conds, "u.model = ?")
+		args = append(args, q.Model)
+	}
+	return conds, args
+}
+
 // CountConversations returns the number of DISTINCT conversations matching the
 // query's filters. It exists because the rollup query splits a conversation
 // into one row per model, so summing per-model bucket counts would double-count
 // multi-model conversations.
 func (s *Store) CountConversations(q UsageQuery) (int64, error) {
-	where := []string{"c.status != 'deleted'"}
-	args := []interface{}{}
-	if q.From != "" {
-		where = append(where, "c.usage_date >= ?")
-		args = append(args, q.From)
-	}
-	if q.To != "" {
-		where = append(where, "c.usage_date <= ?")
-		args = append(args, q.To)
-	}
-	if q.Project != "" {
-		where = append(where, "c.project = ?")
-		args = append(args, q.Project)
-	}
-	if q.Device != "" {
-		where = append(where, "c.device = ?")
-		args = append(args, q.Device)
-	}
+	conds, args := q.whereClause()
 	var n int64
 	if q.Model != "" {
-		where = append(where, "u.model = ?")
-		args = append(args, q.Model)
 		err := s.db.QueryRow("SELECT COUNT(DISTINCT c.id) FROM conversation_model_usage u "+
-			"JOIN conversations c ON c.id = u.conversation_id WHERE "+strings.Join(where, " AND "), args...).Scan(&n)
+			"JOIN conversations c ON c.id = u.conversation_id WHERE "+strings.Join(conds, " AND "), args...).Scan(&n)
 		return n, err
 	}
-	err := s.db.QueryRow("SELECT COUNT(*) FROM conversations c WHERE "+strings.Join(where, " AND "), args...).Scan(&n)
+	err := s.db.QueryRow("SELECT COUNT(*) FROM conversations c WHERE "+strings.Join(conds, " AND "), args...).Scan(&n)
 	return n, err
 }
 
@@ -120,7 +130,10 @@ func (s *Store) UsageBuckets(q UsageQuery) ([]UsageBucket, error) {
 	groups = append(groups, "u.model")
 
 	selects = append(selects,
-		"COUNT(DISTINCT c.id) AS conversations",
+		// Each conversation contributes at most one rollup row per (dims, model)
+		// group (PK is conversation_id+model), so COUNT(*) == COUNT(DISTINCT c.id)
+		// here without the distinct-set overhead.
+		"COUNT(*) AS conversations",
 		"COALESCE(SUM(u.input_tokens),0) AS input_tokens",
 		"COALESCE(SUM(u.output_tokens),0) AS output_tokens",
 		"COALESCE(SUM(u.cache_read_tokens),0) AS cache_read_tokens",
@@ -128,28 +141,7 @@ func (s *Store) UsageBuckets(q UsageQuery) ([]UsageBucket, error) {
 		"COALESCE(SUM(u.cache_creation_1h_tokens),0) AS cc1h",
 	)
 
-	where := []string{"c.status != 'deleted'"}
-	args := []interface{}{}
-	if q.From != "" {
-		where = append(where, "c.usage_date >= ?")
-		args = append(args, q.From)
-	}
-	if q.To != "" {
-		where = append(where, "c.usage_date <= ?")
-		args = append(args, q.To)
-	}
-	if q.Project != "" {
-		where = append(where, "c.project = ?")
-		args = append(args, q.Project)
-	}
-	if q.Device != "" {
-		where = append(where, "c.device = ?")
-		args = append(args, q.Device)
-	}
-	if q.Model != "" {
-		where = append(where, "u.model = ?")
-		args = append(args, q.Model)
-	}
+	where, args := q.whereClause()
 
 	query := "SELECT " + strings.Join(selects, ", ") +
 		" FROM conversation_model_usage u JOIN conversations c ON c.id = u.conversation_id" +

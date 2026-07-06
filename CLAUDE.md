@@ -24,7 +24,7 @@ make dev
 - Env vars: `AICHATLOG_PORT`, `AICHATLOG_DB`, `AICHATLOG_DATA`, `AICHATLOG_TOKEN`, `AICHATLOG_DEV`
 - Error handling: `(result, error)` tuples, wrap with `fmt.Errorf`
 - SQL: dynamic query building with `?` placeholders
-- Database: 6 tables (conversations, messages, tags, extractions, output_sync, process_queue) + FTS5
+- Database: core tables conversations, messages, tags, extractions, output_sync, process_queue, conversation_model_usage (per-model token/cost rollup) + auth tables + FTS5
 - Migration: numbered migrations via `schema_version` table
 - Dedup key: `UNIQUE(source_type, device, session_id)`
 - Dashboard: embedded via Go `embed` from `web/dashboard.html`

@@ -362,12 +362,26 @@ func (s *Store) ensureDeletedStatus() error {
 			content_hash TEXT, has_code INTEGER DEFAULT 0,
 			total_input_tokens INTEGER DEFAULT 0, total_output_tokens INTEGER DEFAULT 0,
 			metadata TEXT DEFAULT '{}',
+			cache_read_tokens INTEGER DEFAULT 0, cache_creation_5m_tokens INTEGER DEFAULT 0,
+			cache_creation_1h_tokens INTEGER DEFAULT 0, usage_date TEXT DEFAULT '',
 			status TEXT DEFAULT 'received' CHECK(status IN ('received','synced','failed','ignored','deleted')),
 			created_at TEXT DEFAULT (datetime('now','localtime')),
 			updated_at TEXT DEFAULT (datetime('now','localtime')),
 			UNIQUE(source_type, device, session_id)
 		)`,
-		`INSERT INTO conversations SELECT * FROM _conv_old`,
+		// Copy by explicit column name (not SELECT *) so this stays correct as
+		// columns are added by later migrations, regardless of physical order.
+		`INSERT INTO conversations
+			(id, session_id, source_type, device, title, project, project_path, model,
+			 started_at, ended_at, word_count, message_count, content_hash, has_code,
+			 total_input_tokens, total_output_tokens, metadata,
+			 cache_read_tokens, cache_creation_5m_tokens, cache_creation_1h_tokens, usage_date,
+			 status, created_at, updated_at)
+		 SELECT id, session_id, source_type, device, title, project, project_path, model,
+			 started_at, ended_at, word_count, message_count, content_hash, has_code,
+			 total_input_tokens, total_output_tokens, metadata,
+			 cache_read_tokens, cache_creation_5m_tokens, cache_creation_1h_tokens, usage_date,
+			 status, created_at, updated_at FROM _conv_old`,
 		`DROP TABLE _conv_old`,
 	}
 	for _, stmt := range stmts {
@@ -1309,11 +1323,9 @@ func writeUsageRollup(tx *sql.Tx, id, model, date, startedAt string,
 
 	rows := models
 	if len(rows) == 0 {
-		m := model
-		if m == "" {
-			m = "unknown"
-		}
-		rows = []ModelUsage{{Model: m, InputTokens: totalIn, OutputTokens: totalOut,
+		// No per-model rollup from the client: derive one row from the totals,
+		// attributed to the primary model (the insert loop normalizes "").
+		rows = []ModelUsage{{Model: model, InputTokens: totalIn, OutputTokens: totalOut,
 			CacheReadTokens: cacheRead, CacheCreation5mTokens: cc5m, CacheCreation1hTokens: cc1h}}
 	}
 

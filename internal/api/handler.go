@@ -671,16 +671,11 @@ func (h *Handler) handleStatsUsage(w http.ResponseWriter, r *http.Request) {
 		if gran != "" {
 			period = periodLabel(b.Day, gran)
 		}
-		// Fold key over the requested dimensions only.
-		key := period + "\x00"
-		if wantProject {
-			key += b.Project
-		}
-		key += "\x00"
-		if wantDevice {
-			key += b.Device
-		}
-		key += "\x00"
+		// Fold key over the requested dimensions. b.Project/b.Device are ""
+		// unless their column was selected, so they concatenate as no-ops when
+		// not grouped; model is always populated by SQL, so it must be gated to
+		// fold buckets across models.
+		key := period + "\x00" + b.Project + "\x00" + b.Device + "\x00"
 		if wantModel {
 			key += b.Model
 		}
@@ -715,9 +710,21 @@ func (h *Handler) handleStatsUsage(w http.ResponseWriter, r *http.Request) {
 		totals.cost += cost
 	}
 
-	rows := make([]map[string]interface{}, 0, len(order))
+	// Sort the typed accumulators (most recent period first, then highest cost)
+	// before converting to maps, so the comparator stays type-safe.
+	accs := make([]*usageAcc, 0, len(order))
 	for _, key := range order {
-		a := groups[key]
+		accs = append(accs, groups[key])
+	}
+	sort.SliceStable(accs, func(i, j int) bool {
+		if accs[i].period != accs[j].period {
+			return accs[i].period > accs[j].period
+		}
+		return accs[i].cost > accs[j].cost
+	})
+
+	rows := make([]map[string]interface{}, 0, len(accs))
+	for _, a := range accs {
 		row := map[string]interface{}{
 			"input_tokens":             a.in,
 			"output_tokens":            a.out,
@@ -741,18 +748,6 @@ func (h *Handler) handleStatsUsage(w http.ResponseWriter, r *http.Request) {
 		}
 		rows = append(rows, row)
 	}
-
-	// Stable order: most recent period first, then highest cost.
-	sort.SliceStable(rows, func(i, j int) bool {
-		pi, _ := rows[i]["period"].(string)
-		pj, _ := rows[j]["period"].(string)
-		if pi != pj {
-			return pi > pj
-		}
-		ci, _ := rows[i]["cost_usd"].(float64)
-		cj, _ := rows[j]["cost_usd"].(float64)
-		return ci > cj
-	})
 
 	unpricedList := make([]string, 0, len(unpriced))
 	for m := range unpriced {

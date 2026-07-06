@@ -403,7 +403,7 @@ async function loadStats() {
 }
 
 // ── Usage / Cost ──
-let usageState = { preset:'30d', gran:'day', rows:[], resp:null };
+let usageState = { preset:'30d', gran:'day', resp:null };
 function uSetPreset(p){ usageState.preset=p; loadUsage(); }
 function uSetGran(g){ usageState.gran=g; loadUsage(); }
 
@@ -413,11 +413,12 @@ function uFmtUSD(v){ v=v||0; if(v===0)return '$0'; if(v>=1)return '$'+v.toFixed(
 function familyOf(m){ m=(m||'').toLowerCase(); if(m.includes('opus'))return 'Opus'; if(m.includes('sonnet'))return 'Sonnet'; if(m.includes('haiku'))return 'Haiku'; return 'Other'; }
 function uVarForFamily(f){ return {Opus:'u1',Sonnet:'u2',Haiku:'u3'}[f]||'u4'; }
 function uShortModel(m){ if(!m)return '—'; return m.replace('claude-','').replace(/-20\d{6}$/,''); }
-function isoDay(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+// UTC day, to match the server's usage_date (derived from the UTC started_at).
+function isoDay(d){ return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0'); }
 function uRange(){
   if(usageState.preset==='all')return {from:'',to:''};
   const days={'7d':7,'30d':30,'90d':90}[usageState.preset]||30;
-  const to=new Date(), from=new Date(); from.setDate(from.getDate()-(days-1));
+  const to=new Date(), from=new Date(); from.setUTCDate(from.getUTCDate()-(days-1));
   return { from:isoDay(from), to:isoDay(to) };
 }
 function uPeriodLabel(p,gran){ if(!p||p==='—')return '—'; if(gran==='month')return p; return p.length>=10?p.slice(5):p; }
@@ -464,7 +465,7 @@ async function loadUsage(){
   let resp;
   try { resp=await api('/stats/usage?'+qs.toString()); }
   catch(e){ const el=document.getElementById('uTime'); if(el)el.innerHTML=`<div class="${C.empty} !py-10">${t('failed')}</div>`; return; }
-  const rows=(resp&&resp.rows)||[]; usageState.rows=rows; usageState.resp=resp;
+  const rows=(resp&&resp.rows)||[]; usageState.resp=resp;
   uRenderKpis((resp&&resp.totals)||{});
   uRenderNote(resp||{});
   uRenderTime(rows,gran);
@@ -580,7 +581,7 @@ function uRenderTable(rows,gran){
 }
 
 function uExport(){
-  const rows=usageState.rows||[]; if(!rows.length)return;
+  const rows=(usageState.resp&&usageState.resp.rows)||[]; if(!rows.length)return;
   const cols=['period','project','device','model','input_tokens','output_tokens','cache_read_tokens','cache_creation_tokens','cost_usd'];
   const esc=v=>{ v=v==null?'':String(v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; };
   const csv=cols.join(',')+'\n'+rows.map(r=>cols.map(c=>esc(r[c])).join(',')).join('\n');

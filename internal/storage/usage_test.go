@@ -210,6 +210,69 @@ func TestMigrateV6Backfill(t *testing.T) {
 	}
 }
 
+// Simulates upgrading a legacy pre-v3 database (conversations CHECK rejects
+// 'deleted') that already has the v6 columns + a rollup row, and verifies the
+// ensureDeletedStatus table-recreate preserves all columns and the rollup join.
+func TestEnsureDeletedStatusRecreatePreservesV6(t *testing.T) {
+	s := newTestStore(t) // fully migrated (v6)
+
+	s.db.Exec("PRAGMA foreign_keys=OFF")
+	if _, err := s.db.Exec("DROP TABLE conversations"); err != nil {
+		t.Fatalf("drop: %v", err)
+	}
+	// Legacy shape: old CHECK (no 'deleted'), but with the v6 columns present
+	// (as they would be after the ALTERs run before the recreate).
+	if _, err := s.db.Exec(`CREATE TABLE conversations (
+		id TEXT PRIMARY KEY, session_id TEXT NOT NULL,
+		source_type TEXT NOT NULL DEFAULT 'claude-code', device TEXT NOT NULL DEFAULT '',
+		title TEXT NOT NULL, project TEXT DEFAULT '', project_path TEXT DEFAULT '',
+		model TEXT DEFAULT '', started_at TEXT NOT NULL, ended_at TEXT DEFAULT '',
+		word_count INTEGER DEFAULT 0, message_count INTEGER DEFAULT 0,
+		content_hash TEXT, has_code INTEGER DEFAULT 0,
+		total_input_tokens INTEGER DEFAULT 0, total_output_tokens INTEGER DEFAULT 0,
+		metadata TEXT DEFAULT '{}',
+		cache_read_tokens INTEGER DEFAULT 0, cache_creation_5m_tokens INTEGER DEFAULT 0,
+		cache_creation_1h_tokens INTEGER DEFAULT 0, usage_date TEXT DEFAULT '',
+		status TEXT DEFAULT 'received' CHECK(status IN ('received','synced','failed','ignored')),
+		created_at TEXT DEFAULT (datetime('now','localtime')),
+		updated_at TEXT DEFAULT (datetime('now','localtime')),
+		UNIQUE(source_type, device, session_id)
+	)`); err != nil {
+		t.Fatalf("legacy create: %v", err)
+	}
+	s.db.Exec(`INSERT INTO conversations (id, session_id, title, started_at, project, device, model, cache_read_tokens, usage_date, status)
+		VALUES ('c1','s1','t','2026-07-06T10:00:00Z','proj','srv','claude-opus-4-8', 12345, '2026-07-06', 'received')`)
+	s.db.Exec(`INSERT INTO conversation_model_usage (conversation_id, model, input_tokens, cache_read_tokens)
+		VALUES ('c1','claude-opus-4-8', 1000, 12345)`)
+	s.db.Exec("PRAGMA foreign_keys=ON")
+
+	if err := s.ensureDeletedStatus(); err != nil {
+		t.Fatalf("ensureDeletedStatus: %v", err)
+	}
+
+	// Conversation row + v6 columns preserved.
+	var cr int64
+	var ud string
+	if err := s.db.QueryRow("SELECT cache_read_tokens, usage_date FROM conversations WHERE id='c1'").Scan(&cr, &ud); err != nil {
+		t.Fatalf("conversation lost after recreate: %v", err)
+	}
+	if cr != 12345 || ud != "2026-07-06" {
+		t.Fatalf("v6 columns not preserved: cache_read=%d usage_date=%q", cr, ud)
+	}
+	// Rollup row survived and is still joinable by the analytics query.
+	got, err := s.UsageBuckets(UsageQuery{GroupBy: []string{"model"}})
+	if err != nil {
+		t.Fatalf("UsageBuckets: %v", err)
+	}
+	if findBucket(got, func(b UsageBucket) bool { return b.Model == "claude-opus-4-8" }) == nil {
+		t.Fatalf("rollup row not joinable after recreate: %+v", got)
+	}
+	// 'deleted' is now accepted.
+	if _, err := s.db.Exec("UPDATE conversations SET status='deleted' WHERE id='c1'"); err != nil {
+		t.Fatalf("'deleted' still rejected after recreate: %v", err)
+	}
+}
+
 func TestUsageBucketsExcludesDeleted(t *testing.T) {
 	s := newTestStore(t)
 	c := usageConv("s1", "proj-a", "srv-1", "claude-opus-4-8", "2026-07-06T10:00:00.000Z", 1000, 200, 0, 0)
