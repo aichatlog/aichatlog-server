@@ -31,6 +31,10 @@ tailwind.config = {
 .modal-overlay{display:none}.modal-overlay.open{display:flex}
 /* Constrain all lucide icons to inherit size from parent or default to 1em */
 [data-lucide] svg, svg[data-lucide], .lucide {width:1em;height:1em}
+/* Usage tab chart palette (dataviz-validated categorical slots 1-4) */
+.uviz{--u-grid:#e1e0d9;--u-axis:#c3c2b7;--u-ink:#52514e;--u-accent:#2a78d6;--u1:#2a78d6;--u2:#1baf7a;--u3:#eda100;--u4:#008300}
+.dark .uviz{--u-grid:#2c2c2a;--u-axis:#383835;--u-ink:#c3c2b7;--u-accent:#3987e5;--u1:#3987e5;--u2:#199e70;--u3:#c98500;--u4:#008300}
+.uviz rect.useg{transition:opacity .12s}.uviz rect.useg:hover{opacity:.82}
 </style>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/aichatlog/aichatlog-protocol@main/web/aichatlog-content.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/aichatlog/aichatlog-protocol@main/web/aichatlog-syntax.css">
@@ -69,6 +73,8 @@ tailwind.config = {
       <i data-lucide="brain" class="w-4 h-4"></i> Knowledge</button>
     <button type="button" class="tab-btn flex items-center gap-2 px-4 py-2 text-sm rounded-t-lg text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800/50 transition-colors" onclick="switchTab('timeline')" data-i18n="timeline">
       <i data-lucide="clock" class="w-4 h-4"></i> Timeline</button>
+    <button type="button" class="tab-btn flex items-center gap-2 px-4 py-2 text-sm rounded-t-lg text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800/50 transition-colors" onclick="switchTab('usage')" data-i18n="usage">
+      <i data-lucide="coins" class="w-4 h-4"></i> Usage</button>
     <button type="button" class="tab-btn flex items-center gap-2 px-4 py-2 text-sm rounded-t-lg text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800/50 transition-colors" onclick="switchTab('files')" data-i18n="files">
       <i data-lucide="paperclip" class="w-4 h-4"></i> Files</button>
     <button type="button" class="tab-btn flex items-center gap-2 px-4 py-2 text-sm rounded-t-lg text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800/50 transition-colors" onclick="switchTab('settings')" data-i18n="settings">
@@ -132,6 +138,7 @@ tailwind.config = {
     <div id="knowledgeList"></div>
   </div>
   <div id="tab-timeline" class="tab-panel"><div id="timelineList"></div></div>
+  <div id="tab-usage" class="tab-panel"><div id="usageContent"></div></div>
   <div id="tab-files" class="tab-panel"><div id="filesContent"></div></div>
   <div id="tab-settings" class="tab-panel"><div id="settingsContent"></div></div>
 </div>
@@ -153,6 +160,12 @@ tailwind.config = {
 const STRINGS = {
   en: {
     conversations:'Conversations', knowledge:'Knowledge', timeline:'Timeline', files:'Files', settings:'Settings',
+    usage:'Usage', u_total_cost:'Total cost', u_input:'Input', u_output:'Output', u_cache_read:'Cache read', u_cache_write:'Cache write', u_convs:'Conversations', u_server:'Server',
+    u_cost_over_time:'Cost over time', u_by_server:'By server', u_by_project:'By project', u_by_model:'By model', u_detail:'Detail', u_export:'Export CSV',
+    u_7d:'7 days', u_30d:'30 days', u_90d:'90 days', u_all:'All time', u_day:'Day', u_week:'Week', u_month:'Month',
+    u_no_data:'No usage data for this range.', u_period:'Period', u_cost:'Cost',
+    u_est_note:'List-price estimate, not a billed amount — subscription usage is included in your plan.',
+    u_unpriced:'Unpriced models (tokens counted, cost $0):',
     search:'Search conversations...', all:'All', received:'Received', synced:'Synced', ignored:'Ignored',
     date:'Date', title:'Title', project:'Project', source:'Source', model:'Model',
     msgs:'Msgs', words:'Words', tokens:'Tokens', status:'Status',
@@ -196,6 +209,12 @@ const STRINGS = {
   },
   'zh-CN': {
     conversations:'对话', knowledge:'知识库', timeline:'时间线', files:'附件', settings:'设置',
+    usage:'用量', u_total_cost:'总成本', u_input:'输入', u_output:'输出', u_cache_read:'缓存读取', u_cache_write:'缓存写入', u_convs:'对话数', u_server:'服务器',
+    u_cost_over_time:'成本趋势', u_by_server:'按服务器', u_by_project:'按项目', u_by_model:'按模型', u_detail:'明细', u_export:'导出 CSV',
+    u_7d:'近 7 天', u_30d:'近 30 天', u_90d:'近 90 天', u_all:'全部', u_day:'日', u_week:'周', u_month:'月',
+    u_no_data:'该时间范围暂无用量数据。', u_period:'时间', u_cost:'成本',
+    u_est_note:'按列表价估算，非实际账单——订阅额度内不另计费。',
+    u_unpriced:'未计价模型（token 已计入，成本记 0）：',
     search:'搜索对话...', all:'全部', received:'已接收', synced:'已同步', ignored:'已忽略',
     date:'日期', title:'标题', project:'项目', source:'来源', model:'模型',
     msgs:'消息', words:'字数', tokens:'Token', status:'状态',
@@ -236,6 +255,12 @@ const STRINGS = {
   },
   'zh-TW': {
     conversations:'對話', knowledge:'知識庫', timeline:'時間線', files:'附件', settings:'設定',
+    usage:'用量', u_total_cost:'總成本', u_input:'輸入', u_output:'輸出', u_cache_read:'快取讀取', u_cache_write:'快取寫入', u_convs:'對話數', u_server:'伺服器',
+    u_cost_over_time:'成本趨勢', u_by_server:'按伺服器', u_by_project:'按專案', u_by_model:'按模型', u_detail:'明細', u_export:'匯出 CSV',
+    u_7d:'近 7 天', u_30d:'近 30 天', u_90d:'近 90 天', u_all:'全部', u_day:'日', u_week:'週', u_month:'月',
+    u_no_data:'此時間範圍暫無用量資料。', u_period:'時間', u_cost:'成本',
+    u_est_note:'按列表價估算，非實際帳單——訂閱額度內不另計費。',
+    u_unpriced:'未計價模型（token 已計入，成本記 0）：',
     search:'搜尋對話...', all:'全部', received:'已接收', synced:'已同步', ignored:'已忽略',
     date:'日期', title:'標題', project:'專案', source:'來源', model:'模型',
     msgs:'訊息', words:'字數', tokens:'Token', status:'狀態',
@@ -375,6 +400,192 @@ async function loadStats() {
     container.appendChild(card);
   });
   lucide.createIcons();
+}
+
+// ── Usage / Cost ──
+let usageState = { preset:'30d', gran:'day', rows:[], resp:null };
+function uSetPreset(p){ usageState.preset=p; loadUsage(); }
+function uSetGran(g){ usageState.gran=g; loadUsage(); }
+
+function uEsc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function uFmtTok(n){ n=n||0; if(n>=1e9)return (n/1e9).toFixed(2)+'B'; if(n>=1e6)return (n/1e6).toFixed(2)+'M'; if(n>=1e3)return (n/1e3).toFixed(1)+'k'; return ''+n; }
+function uFmtUSD(v){ v=v||0; if(v===0)return '$0'; if(v>=1)return '$'+v.toFixed(2); if(v>=0.01)return '$'+v.toFixed(3); return '$'+v.toFixed(5); }
+function familyOf(m){ m=(m||'').toLowerCase(); if(m.includes('opus'))return 'Opus'; if(m.includes('sonnet'))return 'Sonnet'; if(m.includes('haiku'))return 'Haiku'; return 'Other'; }
+function uVarForFamily(f){ return {Opus:'u1',Sonnet:'u2',Haiku:'u3'}[f]||'u4'; }
+function uShortModel(m){ if(!m)return '—'; return m.replace('claude-','').replace(/-20\d{6}$/,''); }
+function isoDay(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function uRange(){
+  if(usageState.preset==='all')return {from:'',to:''};
+  const days={'7d':7,'30d':30,'90d':90}[usageState.preset]||30;
+  const to=new Date(), from=new Date(); from.setDate(from.getDate()-(days-1));
+  return { from:isoDay(from), to:isoDay(to) };
+}
+function uPeriodLabel(p,gran){ if(!p||p==='—')return '—'; if(gran==='month')return p; return p.length>=10?p.slice(5):p; }
+
+function uFilterBtn(active,label,onclick){
+  return `<button onclick="${onclick}" class="px-3 py-1.5 text-xs rounded-lg border transition-colors ${active?'!border-blue-500 !text-blue-500 bg-blue-50 dark:bg-blue-500/10':C.btn}">${label}</button>`;
+}
+function uSkeleton(){
+  const s=usageState;
+  const presets=[['7d','u_7d'],['30d','u_30d'],['90d','u_90d'],['all','u_all']].map(([k,l])=>uFilterBtn(s.preset===k,t(l),`uSetPreset('${k}')`)).join('');
+  const grans=[['day','u_day'],['week','u_week'],['month','u_month']].map(([k,l])=>uFilterBtn(s.gran===k,t(l),`uSetGran('${k}')`)).join('');
+  return `<div class="uviz">
+    <div class="flex flex-wrap items-center gap-2 mb-4">
+      <div class="flex gap-1">${presets}</div>
+      <span class="${C.text4} px-1">|</span>
+      <div class="flex gap-1">${grans}</div>
+      <div class="flex-1"></div>
+      <button onclick="uExport()" class="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg ${C.btn}"><i data-lucide="download" class="w-3.5 h-3.5"></i>${t('u_export')}</button>
+    </div>
+    <div id="uKpis" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-3"></div>
+    <div id="uNote" class="text-xs ${C.text3} mb-5"></div>
+    <div class="${C.section}">
+      <div class="flex items-center justify-between gap-3 mb-3 flex-wrap"><h3 class="text-sm font-semibold ${C.text1}">${t('u_cost_over_time')}</h3><div id="uLegend" class="flex flex-wrap gap-3"></div></div>
+      <div id="uTime" class="overflow-x-auto"></div>
+    </div>
+    <div class="grid md:grid-cols-3 gap-4 mb-4">
+      <div class="${C.section} !mb-0"><h3 class="text-sm font-semibold ${C.text1} mb-3">${t('u_by_server')}</h3><div id="uByDevice"></div></div>
+      <div class="${C.section} !mb-0"><h3 class="text-sm font-semibold ${C.text1} mb-3">${t('u_by_project')}</h3><div id="uByProject"></div></div>
+      <div class="${C.section} !mb-0"><h3 class="text-sm font-semibold ${C.text1} mb-3">${t('u_by_model')}</h3><div id="uByModel"></div></div>
+    </div>
+    <div class="${C.section}">
+      <h3 class="text-sm font-semibold ${C.text1} mb-3">${t('u_detail')}</h3>
+      <div id="uTable" class="overflow-x-auto"></div>
+    </div>
+  </div>`;
+}
+
+async function loadUsage(){
+  const host=document.getElementById('usageContent'); if(!host)return;
+  host.innerHTML=uSkeleton(); lucide.createIcons();
+  const {from,to}=uRange(), gran=usageState.gran;
+  const qs=new URLSearchParams({ group_by: gran+',project,device,model' });
+  if(from)qs.set('from',from); if(to)qs.set('to',to);
+  let resp;
+  try { resp=await api('/stats/usage?'+qs.toString()); }
+  catch(e){ const el=document.getElementById('uTime'); if(el)el.innerHTML=`<div class="${C.empty} !py-10">${t('failed')}</div>`; return; }
+  const rows=(resp&&resp.rows)||[]; usageState.rows=rows; usageState.resp=resp;
+  uRenderKpis((resp&&resp.totals)||{});
+  uRenderNote(resp||{});
+  uRenderTime(rows,gran);
+  uRenderBreakdowns(rows);
+  uRenderTable(rows,gran);
+  lucide.createIcons();
+}
+
+function uRenderKpis(tot){
+  const cont=document.getElementById('uKpis'); if(!cont)return;
+  const items=[
+    {label:t('u_total_cost'),v:uFmtUSD(tot.cost_usd),color:'blue',icon:'dollar-sign'},
+    {label:t('u_convs'),v:(tot.conversations||0).toLocaleString(),color:'slate',icon:'message-square'},
+    {label:t('u_input'),v:uFmtTok(tot.input_tokens),color:'sky',icon:'arrow-down-to-line'},
+    {label:t('u_output'),v:uFmtTok(tot.output_tokens),color:'emerald',icon:'arrow-up-from-line'},
+    {label:t('u_cache_read'),v:uFmtTok(tot.cache_read_tokens),color:'teal',icon:'database'},
+    {label:t('u_cache_write'),v:uFmtTok(tot.cache_creation_tokens),color:'amber',icon:'database-zap'},
+  ];
+  cont.innerHTML=items.map(x=>`<div class="${C.card} rounded-xl p-3">
+    <div class="flex items-center gap-1.5 mb-1"><i data-lucide="${x.icon}" class="w-3.5 h-3.5 text-${x.color}-500"></i><span class="text-xs ${C.text2}">${x.label}</span></div>
+    <div class="text-xl font-bold font-mono text-${x.color}-500 tabular-nums">${x.v}</div></div>`).join('');
+}
+
+function uRenderNote(resp){
+  const el=document.getElementById('uNote'); if(!el)return;
+  let html=uEsc(t('u_est_note'));
+  if(resp.unpriced_models&&resp.unpriced_models.length){ html+=' · '+uEsc(t('u_unpriced'))+' '+resp.unpriced_models.map(uEsc).join(', '); }
+  el.innerHTML=html;
+}
+
+function uLegend(fams){
+  const el=document.getElementById('uLegend'); if(!el)return;
+  el.innerHTML=fams.map(f=>`<span class="inline-flex items-center gap-1.5 text-xs ${C.text2}"><span class="inline-block" style="width:10px;height:10px;border-radius:2px;background:var(--${uVarForFamily(f)})"></span>${f}</span>`).join('');
+}
+
+function uRenderTime(rows,gran){
+  const el=document.getElementById('uTime'); if(!el)return;
+  const byPeriod={}, order=[], famSet=new Set();
+  rows.forEach(r=>{ const p=r.period||'—', f=familyOf(r.model);
+    if(!byPeriod[p]){ byPeriod[p]={}; order.push(p); }
+    byPeriod[p][f]=(byPeriod[p][f]||0)+(r.cost_usd||0); famSet.add(f); });
+  const periods=order.slice().sort();
+  const fams=['Opus','Sonnet','Haiku','Other'].filter(f=>famSet.has(f));
+  if(!periods.length){ el.innerHTML=`<div class="${C.empty} !py-10">${t('u_no_data')}</div>`; uLegend([]); return; }
+  const max=Math.max(...periods.map(p=>fams.reduce((a,f)=>a+(byPeriod[p][f]||0),0)),0.000001);
+  const n=periods.length, band=Math.max(30,Math.min(64,640/n));
+  const padL=52,padR=10,padT=10,padB=40, plotW=n*band, W=padL+plotW+padR, H=228, plotH=H-padT-padB, bw=Math.min(30,band*0.6);
+  const y=v=>padT+plotH-(v/max)*plotH;
+  let svg=`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="system-ui,sans-serif" style="display:block">`;
+  for(let i=0;i<=4;i++){ const val=max*i/4, yy=y(val);
+    svg+=`<line x1="${padL}" y1="${yy.toFixed(1)}" x2="${W-padR}" y2="${yy.toFixed(1)}" stroke="var(--u-grid)" stroke-width="1"/>`;
+    svg+=`<text x="${padL-6}" y="${(yy+3).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--u-ink)">${uFmtUSD(val)}</text>`; }
+  const showEvery=Math.ceil(n/12);
+  periods.forEach((p,i)=>{ const cx=padL+i*band+band/2; let acc=0;
+    fams.forEach(f=>{ const c=byPeriod[p][f]||0; if(c<=0)return;
+      const h=(c/max)*plotH, y1=y(acc+c), hh=Math.max(0,h-2);
+      svg+=`<rect class="useg" x="${(cx-bw/2).toFixed(1)}" y="${y1.toFixed(1)}" width="${bw.toFixed(1)}" height="${hh.toFixed(1)}" rx="2" fill="var(--${uVarForFamily(f)})"><title>${uEsc(uPeriodLabel(p,gran))} · ${f}: ${uFmtUSD(c)}</title></rect>`;
+      acc+=c; });
+    if(i%showEvery===0){ svg+=`<text x="${cx.toFixed(1)}" y="${H-padB+15}" text-anchor="middle" font-size="10" fill="var(--u-ink)">${uEsc(uPeriodLabel(p,gran))}</text>`; }
+  });
+  svg+=`<line x1="${padL}" y1="${y(0).toFixed(1)}" x2="${W-padR}" y2="${y(0).toFixed(1)}" stroke="var(--u-axis)" stroke-width="1"/></svg>`;
+  el.innerHTML=svg;
+  uLegend(fams);
+}
+
+function uHBars(elId,map,colorByFamily){
+  const el=document.getElementById(elId); if(!el)return;
+  const entries=Object.entries(map).map(([label,cost])=>({label,cost})).sort((a,b)=>b.cost-a.cost);
+  if(!entries.length){ el.innerHTML=`<div class="${C.empty} !py-6 text-xs">${t('u_no_data')}</div>`; return; }
+  const max=Math.max(...entries.map(e=>e.cost),0.000001);
+  el.innerHTML=entries.slice(0,8).map(e=>{
+    const pct=Math.max(2,(e.cost/max)*100);
+    const color=colorByFamily?`var(--${uVarForFamily(e.label)})`:'var(--u-accent)';
+    return `<div class="flex items-center gap-2 mb-1.5">
+      <div class="w-24 shrink-0 truncate text-xs ${C.text2} text-right" title="${uEsc(e.label)}">${uEsc(e.label||'—')}</div>
+      <div class="flex-1 h-4 rounded bg-gray-100 dark:bg-slate-800 overflow-hidden"><div class="h-full rounded" style="width:${pct.toFixed(1)}%;background:${color}"></div></div>
+      <div class="w-16 shrink-0 text-xs font-mono ${C.text1} text-right tabular-nums">${uFmtUSD(e.cost)}</div>
+    </div>`;
+  }).join('');
+}
+
+function uRenderBreakdowns(rows){
+  const dev={},proj={},mod={};
+  rows.forEach(r=>{ const c=r.cost_usd||0;
+    dev[r.device||'—']=(dev[r.device||'—']||0)+c;
+    proj[r.project||'—']=(proj[r.project||'—']||0)+c;
+    mod[familyOf(r.model)]=(mod[familyOf(r.model)]||0)+c; });
+  uHBars('uByDevice',dev,false);
+  uHBars('uByProject',proj,false);
+  uHBars('uByModel',mod,true);
+}
+
+function uRenderTable(rows,gran){
+  const el=document.getElementById('uTable'); if(!el)return;
+  if(!rows.length){ el.innerHTML=`<div class="${C.empty} !py-8">${t('u_no_data')}</div>`; return; }
+  const cols=[t('u_period'),t('project'),t('u_server'),t('model'),t('u_input'),t('u_output'),t('u_cache_read'),t('u_cache_write'),t('u_cost')];
+  let h=`<table class="w-full text-xs"><thead><tr class="${C.text3}">`+cols.map((c,i)=>`<th class="${i>=4?'text-right':'text-left'} font-medium pb-2 px-2 whitespace-nowrap">${uEsc(c)}</th>`).join('')+`</tr></thead><tbody>`;
+  rows.slice(0,500).forEach(r=>{
+    h+=`<tr class="border-t border-gray-100 dark:border-slate-800/50">`+
+       `<td class="px-2 py-1.5 ${C.text2} whitespace-nowrap">${uEsc(r.period||'—')}</td>`+
+       `<td class="px-2 py-1.5 ${C.text1} max-w-[140px] truncate" title="${uEsc(r.project||'')}">${uEsc(r.project||'—')}</td>`+
+       `<td class="px-2 py-1.5 ${C.text2} whitespace-nowrap">${uEsc(r.device||'—')}</td>`+
+       `<td class="px-2 py-1.5 ${C.text2} whitespace-nowrap">${uEsc(uShortModel(r.model))}</td>`+
+       `<td class="px-2 py-1.5 text-right font-mono tabular-nums ${C.text2}">${uFmtTok(r.input_tokens)}</td>`+
+       `<td class="px-2 py-1.5 text-right font-mono tabular-nums ${C.text2}">${uFmtTok(r.output_tokens)}</td>`+
+       `<td class="px-2 py-1.5 text-right font-mono tabular-nums ${C.text2}">${uFmtTok(r.cache_read_tokens)}</td>`+
+       `<td class="px-2 py-1.5 text-right font-mono tabular-nums ${C.text2}">${uFmtTok(r.cache_creation_tokens)}</td>`+
+       `<td class="px-2 py-1.5 text-right font-mono tabular-nums ${C.text1}">${uFmtUSD(r.cost_usd)}</td></tr>`;
+  });
+  h+=`</tbody></table>`;
+  if(rows.length>500)h+=`<div class="${C.text3} text-xs mt-2">… ${rows.length-500}+ more (export CSV for all)</div>`;
+  el.innerHTML=h;
+}
+
+function uExport(){
+  const rows=usageState.rows||[]; if(!rows.length)return;
+  const cols=['period','project','device','model','input_tokens','output_tokens','cache_read_tokens','cache_creation_tokens','cost_usd'];
+  const esc=v=>{ v=v==null?'':String(v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; };
+  const csv=cols.join(',')+'\n'+rows.map(r=>cols.map(c=>esc(r[c])).join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}), url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download='aichatlog-usage-'+usageState.gran+'.csv'; a.click(); URL.revokeObjectURL(url);
 }
 
 // ── Conversations ──
@@ -526,10 +737,31 @@ async function showDetail(id,scrollToTurn) {
   addChip(tf('msgs_words',c.message_count,c.word_count));
   if(c.total_input_tokens||c.total_output_tokens)addChip(tf('tokens_in_out',c.total_input_tokens,c.total_output_tokens));
   const sc=statusColor(c.status); addChip(c.status,`bg-${sc}-50 dark:bg-${sc}-500/10 text-${sc}-600 dark:text-${sc}-400`);
-  if(c.metadata&&c.metadata!=='{}'){try{const md2=typeof c.metadata==='string'?JSON.parse(c.metadata):c.metadata;Object.entries(md2).forEach(([k,v])=>addChip(k+': '+v,'bg-gray-50 dark:bg-slate-800/50 '+C.text3));}catch(e){}}
+  let memoryFiles=null;
+  if(c.metadata&&c.metadata!=='{}'){try{const md2=typeof c.metadata==='string'?JSON.parse(c.metadata):c.metadata;Object.entries(md2).forEach(([k,v])=>{if(k==='memory'&&v&&typeof v==='object'){memoryFiles=v;return;}addChip(k+': '+v,'bg-gray-50 dark:bg-slate-800/50 '+C.text3);});}catch(e){}}
 
   const container = document.getElementById('modalMessages');
   container.replaceChildren();
+
+  // Project memory — collapsible block above the messages
+  if(memoryFiles&&Object.keys(memoryFiles).length){
+    const det=document.createElement('details');det.className='tool-block';
+    const sum=document.createElement('summary');
+    const strong=document.createElement('strong');strong.textContent='Memory';
+    const span=document.createElement('span');span.className='tool-params';span.textContent=Object.keys(memoryFiles).length+' files';
+    sum.append(strong,document.createTextNode(' '),span);
+    det.appendChild(sum);
+    const body=document.createElement('div');body.className='tool-body';
+    const mdInst=window.AIChatLog.initMarkdown();
+    Object.entries(memoryFiles).forEach(([name,content])=>{
+      const h=document.createElement('h4');h.textContent=name;h.style.margin='6px 0 2px';h.style.fontSize='13px';h.style.fontWeight='600';
+      body.appendChild(h);
+      window.AIChatLog.renderContent(body,content,mdInst);
+    });
+    det.appendChild(body);
+    container.appendChild(det);
+  }
+
   const turns = msgsToTurns(c.messages);
 
   let scrollTarget=null;
@@ -569,7 +801,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 function switchTab(name, skipPush) {
   document.querySelectorAll('.tab-btn').forEach(b=>{const a=b.getAttribute('data-i18n')===name;b.classList.toggle('!text-blue-500',a);b.classList.toggle('!border-b-2',a);b.classList.toggle('!border-blue-500',a);});
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.id==='tab-'+name));
-  if(name==='knowledge')loadKnowledge(); if(name==='timeline')loadTimeline(); if(name==='files')loadFiles(); if(name==='settings')loadSettings();
+  if(name==='knowledge')loadKnowledge(); if(name==='timeline')loadTimeline(); if(name==='usage')loadUsage(); if(name==='files')loadFiles(); if(name==='settings')loadSettings();
   if(!skipPush)router.push(name==='conversations'?'/conversations':'/'+name);
 }
 let knowledgeType='';
