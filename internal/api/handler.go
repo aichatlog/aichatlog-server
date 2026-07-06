@@ -6,13 +6,16 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/aichatlog/aichatlog-server/internal/config"
+	"github.com/aichatlog/aichatlog-server/internal/pricing"
 	"github.com/aichatlog/aichatlog-server/internal/storage"
 )
 
@@ -71,6 +74,8 @@ func NewHandler(store *storage.Store, token string, dashboardHTML []byte, favico
 	mux.HandleFunc("POST /api/conversations/{id}/reprocess", h.handleReprocess)
 	mux.HandleFunc("GET /api/stats", h.handleStats)
 	mux.HandleFunc("GET /api/stats/summary", h.handleStatsSummary)
+	mux.HandleFunc("GET /api/stats/usage", h.handleStatsUsage)
+	mux.HandleFunc("GET /api/pricing", h.handleGetPricing)
 	mux.HandleFunc("GET /api/projects", h.handleListProjects)
 	mux.HandleFunc("GET /api/extractions", h.handleListExtractions)
 	mux.HandleFunc("GET /api/conversations/{id}/extractions", h.handleGetExtractions)
@@ -589,6 +594,239 @@ func (h *Handler) handleStats(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, stats)
 }
 
+// validUsageDims restricts group_by to known, injection-safe dimensions.
+var validUsageDims = map[string]bool{
+	"day": true, "week": true, "month": true,
+	"project": true, "device": true, "model": true,
+}
+
+// usageAcc accumulates one output group across the raw per-model buckets.
+// Conversation counts are handled separately (CountConversations), because the
+// rollup splits a multi-model conversation into several buckets.
+type usageAcc struct {
+	period, project, device, model string
+	in, out, cacheRead, cc5m, cc1h int64
+	cost                           float64
+}
+
+// handleStatsUsage aggregates token usage and estimated cost across the
+// requested dimensions (time × project × device × model) over all synced
+// servers. Cost is computed per model (cache multipliers are model-specific)
+// then folded into the requested grouping. It is a list-price estimate — see
+// the pricing_note in the response.
+func (h *Handler) handleStatsUsage(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+
+	// Parse group_by: comma list, known dims only, at most one time granularity.
+	var groupBy []string
+	seen := map[string]bool{}
+	gran := ""
+	for _, g := range strings.Split(q.Get("group_by"), ",") {
+		g = strings.TrimSpace(strings.ToLower(g))
+		if g == "" || seen[g] || !validUsageDims[g] {
+			continue
+		}
+		if g == "day" || g == "week" || g == "month" {
+			if gran != "" {
+				continue // first time granularity wins
+			}
+			gran = g
+		}
+		seen[g] = true
+		groupBy = append(groupBy, g)
+	}
+
+	uq := storage.UsageQuery{
+		GroupBy: groupBy,
+		From:    strings.TrimSpace(q.Get("from")),
+		To:      strings.TrimSpace(q.Get("to")),
+		Project: q.Get("project"),
+		Device:  q.Get("device"),
+		Model:   q.Get("model"),
+	}
+
+	buckets, err := h.store.UsageBuckets(uq)
+	if err != nil {
+		log.Printf("usage query: %v", err)
+		jsonError(w, "Internal error", http.StatusInternalServerError)
+		return
+	}
+	// Distinct conversation count — computed separately because the rollup splits
+	// a multi-model conversation into several buckets that must not be summed.
+	totalConvs, err := h.store.CountConversations(uq)
+	if err != nil {
+		log.Printf("usage count: %v", err)
+		jsonError(w, "Internal error", http.StatusInternalServerError)
+		return
+	}
+
+	wantProject, wantDevice, wantModel := seen["project"], seen["device"], seen["model"]
+	order := []string{}
+	groups := map[string]*usageAcc{}
+	var totals usageAcc
+	unpriced := map[string]bool{}
+
+	for _, b := range buckets {
+		period := ""
+		if gran != "" {
+			period = periodLabel(b.Day, gran)
+		}
+		// Fold key over the requested dimensions only.
+		key := period + "\x00"
+		if wantProject {
+			key += b.Project
+		}
+		key += "\x00"
+		if wantDevice {
+			key += b.Device
+		}
+		key += "\x00"
+		if wantModel {
+			key += b.Model
+		}
+
+		cost, priced := pricing.Cost(b.Model, b.InputTokens, b.OutputTokens, b.CacheReadTokens, b.CacheCreation5mTokens, b.CacheCreation1hTokens)
+		if !priced && (b.InputTokens > 0 || b.OutputTokens > 0 || b.CacheReadTokens > 0 || b.CacheCreation5mTokens > 0 || b.CacheCreation1hTokens > 0) {
+			label := b.Model
+			if label == "" {
+				label = "(unknown)"
+			}
+			unpriced[label] = true
+		}
+
+		a := groups[key]
+		if a == nil {
+			a = &usageAcc{period: period, project: b.Project, device: b.Device, model: b.Model}
+			groups[key] = a
+			order = append(order, key)
+		}
+		a.in += b.InputTokens
+		a.out += b.OutputTokens
+		a.cacheRead += b.CacheReadTokens
+		a.cc5m += b.CacheCreation5mTokens
+		a.cc1h += b.CacheCreation1hTokens
+		a.cost += cost
+
+		totals.in += b.InputTokens
+		totals.out += b.OutputTokens
+		totals.cacheRead += b.CacheReadTokens
+		totals.cc5m += b.CacheCreation5mTokens
+		totals.cc1h += b.CacheCreation1hTokens
+		totals.cost += cost
+	}
+
+	rows := make([]map[string]interface{}, 0, len(order))
+	for _, key := range order {
+		a := groups[key]
+		row := map[string]interface{}{
+			"input_tokens":             a.in,
+			"output_tokens":            a.out,
+			"cache_read_tokens":        a.cacheRead,
+			"cache_creation_tokens":    a.cc5m + a.cc1h,
+			"cache_creation_5m_tokens": a.cc5m,
+			"cache_creation_1h_tokens": a.cc1h,
+			"cost_usd":                 roundCost(a.cost),
+		}
+		if gran != "" {
+			row["period"] = a.period
+		}
+		if wantProject {
+			row["project"] = a.project
+		}
+		if wantDevice {
+			row["device"] = a.device
+		}
+		if wantModel {
+			row["model"] = a.model
+		}
+		rows = append(rows, row)
+	}
+
+	// Stable order: most recent period first, then highest cost.
+	sort.SliceStable(rows, func(i, j int) bool {
+		pi, _ := rows[i]["period"].(string)
+		pj, _ := rows[j]["period"].(string)
+		if pi != pj {
+			return pi > pj
+		}
+		ci, _ := rows[i]["cost_usd"].(float64)
+		cj, _ := rows[j]["cost_usd"].(float64)
+		return ci > cj
+	})
+
+	unpricedList := make([]string, 0, len(unpriced))
+	for m := range unpriced {
+		unpricedList = append(unpricedList, m)
+	}
+	sort.Strings(unpricedList)
+
+	if groupBy == nil {
+		groupBy = []string{}
+	}
+	jsonResponse(w, map[string]interface{}{
+		"group_by": groupBy,
+		"from":     uq.From,
+		"to":       uq.To,
+		"rows":     rows,
+		"totals": map[string]interface{}{
+			"conversations":            totalConvs,
+			"input_tokens":             totals.in,
+			"output_tokens":            totals.out,
+			"cache_read_tokens":        totals.cacheRead,
+			"cache_creation_tokens":    totals.cc5m + totals.cc1h,
+			"cache_creation_5m_tokens": totals.cc5m,
+			"cache_creation_1h_tokens": totals.cc1h,
+			"cost_usd":                 roundCost(totals.cost),
+		},
+		"unpriced_models": unpricedList,
+		"pricing_note":    "List-price estimate, not a billed amount (subscription usage is included in your plan). Cost is computed per-model with the cache 5m/1h split. For pre-v6 conversations, cache-creation lacks the TTL split (priced at 5m) and tokens are attributed to the conversation's primary model. Rates: GET /api/pricing.",
+	})
+}
+
+// handleGetPricing returns the active model rate table and cache multipliers.
+func (h *Handler) handleGetPricing(w http.ResponseWriter, r *http.Request) {
+	jsonResponse(w, map[string]interface{}{
+		"unit":  "USD per 1M tokens (list price)",
+		"rates": pricing.Rates(),
+		"cache_multipliers": map[string]float64{
+			"cache_write_5m": pricing.CacheWrite5mMult,
+			"cache_write_1h": pricing.CacheWrite1hMult,
+			"cache_read":     pricing.CacheReadMult,
+		},
+		"note": "Multipliers apply to a model's input rate. Override defaults with the AICHATLOG_PRICING env var (JSON, e.g. {\"opus\":{\"input\":5,\"output\":25}}).",
+	})
+}
+
+// periodLabel converts a YYYY-MM-DD day into a bucket label at the given
+// granularity: day -> the day; month -> YYYY-MM; week -> the Monday of that week
+// (YYYY-MM-DD). Falls back to the raw day if unparseable.
+func periodLabel(day, gran string) string {
+	switch gran {
+	case "month":
+		if len(day) >= 7 {
+			return day[:7]
+		}
+		return day
+	case "week":
+		t, err := time.Parse("2006-01-02", day)
+		if err != nil {
+			return day
+		}
+		wd := int(t.Weekday())
+		if wd == 0 {
+			wd = 7 // Sunday -> 7, so the week starts Monday
+		}
+		return t.AddDate(0, 0, -(wd - 1)).Format("2006-01-02")
+	default:
+		return day
+	}
+}
+
+// roundCost rounds a USD cost estimate to 4 decimal places.
+func roundCost(v float64) float64 {
+	return math.Round(v*1e4) / 1e4
+}
+
 func (h *Handler) handleTimeline(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	limit := intParam(q.Get("limit"), 50)
@@ -983,8 +1221,8 @@ func (h *Handler) handleCreateKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	jsonResponse(w, map[string]interface{}{
-		"ok":  true,
-		"key": rawKey,
+		"ok":   true,
+		"key":  rawKey,
 		"info": keyInfo,
 	})
 }

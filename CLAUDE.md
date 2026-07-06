@@ -48,6 +48,8 @@ make dev
 
 ### Other
 - `GET /api/stats`, `GET /api/stats/summary` — analytics
+- `GET /api/stats/usage` — token usage + list-price cost, grouped by any of `day,week,month,project,device,model` (query param `group_by`), with `from`/`to` (YYYY-MM-DD, on start day) and `project`/`device`/`model` filters. Cache tokens read from the `metadata` JSON blob via `json_extract`; cost computed per-model in `internal/pricing` then folded. Estimate only (see `pricing_note`); unrecognized models listed in `unpriced_models` (tokens counted, cost 0).
+- `GET /api/pricing` — active per-model rate table + cache multipliers. Override defaults with `AICHATLOG_PRICING` env (JSON).
 - `GET /api/timeline` — chronological Q&A turns
 - `GET /api/extractions` — LLM-extracted knowledge
 - Auth: API keys, session cookies, legacy bearer token

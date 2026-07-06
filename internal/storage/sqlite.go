@@ -23,25 +23,43 @@ import (
 
 // ConversationObject matches the plugin's ConversationObject protocol.
 type ConversationObject struct {
-	Version           int                    `json:"version"`
-	Source            string                 `json:"source"`
-	Device            string                 `json:"device"`
-	SessionID         string                 `json:"session_id"`
-	Title             string                 `json:"title"`
-	Date              string                 `json:"date"`
-	StartedAt         string                 `json:"started_at,omitempty"`
-	EndedAt           string                 `json:"ended_at,omitempty"`
-	Project           string                 `json:"project"`
-	ProjectPath       string                 `json:"project_path"`
-	Model             string                 `json:"model,omitempty"`
-	MessageCount      int                    `json:"message_count"`
-	WordCount         int                    `json:"word_count"`
-	ContentHash       string                 `json:"content_hash"`
-	HasCode           bool                   `json:"has_code,omitempty"`
-	TotalInputTokens  int                    `json:"total_input_tokens,omitempty"`
-	TotalOutputTokens int                    `json:"total_output_tokens,omitempty"`
-	Metadata          map[string]interface{} `json:"metadata,omitempty"`
-	Messages          []Message              `json:"messages"`
+	Version           int    `json:"version"`
+	Source            string `json:"source"`
+	Device            string `json:"device"`
+	SessionID         string `json:"session_id"`
+	Title             string `json:"title"`
+	Date              string `json:"date"`
+	StartedAt         string `json:"started_at,omitempty"`
+	EndedAt           string `json:"ended_at,omitempty"`
+	Project           string `json:"project"`
+	ProjectPath       string `json:"project_path"`
+	Model             string `json:"model,omitempty"`
+	MessageCount      int    `json:"message_count"`
+	WordCount         int    `json:"word_count"`
+	ContentHash       string `json:"content_hash"`
+	HasCode           bool   `json:"has_code,omitempty"`
+	TotalInputTokens  int    `json:"total_input_tokens,omitempty"`
+	TotalOutputTokens int    `json:"total_output_tokens,omitempty"`
+	// Phase 2: promoted cache tokens + per-model rollup. Optional/back-compatible;
+	// pre-v6 plugins send cache via Metadata and omit ModelsUsage.
+	CacheReadTokens       int                    `json:"cache_read_tokens,omitempty"`
+	CacheCreation5mTokens int                    `json:"cache_creation_5m_tokens,omitempty"`
+	CacheCreation1hTokens int                    `json:"cache_creation_1h_tokens,omitempty"`
+	ModelsUsage           []ModelUsage           `json:"models_usage,omitempty"`
+	Metadata              map[string]interface{} `json:"metadata,omitempty"`
+	Messages              []Message              `json:"messages"`
+}
+
+// ModelUsage is a per-model token rollup within one conversation. Values are
+// CUMULATIVE over all assistant messages (even in v2 delta mode), so the server
+// can rebuild the rollup idempotently on every sync.
+type ModelUsage struct {
+	Model                 string `json:"model"`
+	InputTokens           int    `json:"input_tokens"`
+	OutputTokens          int    `json:"output_tokens"`
+	CacheReadTokens       int    `json:"cache_read_tokens"`
+	CacheCreation5mTokens int    `json:"cache_creation_5m_tokens"`
+	CacheCreation1hTokens int    `json:"cache_creation_1h_tokens"`
 }
 
 // Message represents a single message in a conversation.
@@ -150,27 +168,31 @@ type Stats struct {
 
 // SyncRequest is the v2 sync protocol request.
 type SyncRequest struct {
-	Version           int                    `json:"version"`
-	SyncMode          string                 `json:"sync_mode"` // "full", "delta", "check"
-	Source            string                 `json:"source"`
-	Device            string                 `json:"device"`
-	SessionID         string                 `json:"session_id"`
-	Title             string                 `json:"title"`
-	Date              string                 `json:"date"`
-	StartedAt         string                 `json:"started_at,omitempty"`
-	EndedAt           string                 `json:"ended_at,omitempty"`
-	Project           string                 `json:"project"`
-	ProjectPath       string                 `json:"project_path"`
-	Model             string                 `json:"model,omitempty"`
-	MessageCount      int                    `json:"message_count"`
-	WordCount         int                    `json:"word_count"`
-	ContentHash       string                 `json:"content_hash"`
-	HasCode           *bool                  `json:"has_code,omitempty"`
-	TotalInputTokens  int                    `json:"total_input_tokens,omitempty"`
-	TotalOutputTokens int                    `json:"total_output_tokens,omitempty"`
-	Metadata          map[string]interface{} `json:"metadata,omitempty"`
-	DeltaFromSeq      int                    `json:"delta_from_seq,omitempty"`
-	Messages          []Message              `json:"messages,omitempty"`
+	Version               int                    `json:"version"`
+	SyncMode              string                 `json:"sync_mode"` // "full", "delta", "check"
+	Source                string                 `json:"source"`
+	Device                string                 `json:"device"`
+	SessionID             string                 `json:"session_id"`
+	Title                 string                 `json:"title"`
+	Date                  string                 `json:"date"`
+	StartedAt             string                 `json:"started_at,omitempty"`
+	EndedAt               string                 `json:"ended_at,omitempty"`
+	Project               string                 `json:"project"`
+	ProjectPath           string                 `json:"project_path"`
+	Model                 string                 `json:"model,omitempty"`
+	MessageCount          int                    `json:"message_count"`
+	WordCount             int                    `json:"word_count"`
+	ContentHash           string                 `json:"content_hash"`
+	HasCode               *bool                  `json:"has_code,omitempty"`
+	TotalInputTokens      int                    `json:"total_input_tokens,omitempty"`
+	TotalOutputTokens     int                    `json:"total_output_tokens,omitempty"`
+	CacheReadTokens       int                    `json:"cache_read_tokens,omitempty"`
+	CacheCreation5mTokens int                    `json:"cache_creation_5m_tokens,omitempty"`
+	CacheCreation1hTokens int                    `json:"cache_creation_1h_tokens,omitempty"`
+	ModelsUsage           []ModelUsage           `json:"models_usage,omitempty"`
+	Metadata              map[string]interface{} `json:"metadata,omitempty"`
+	DeltaFromSeq          int                    `json:"delta_from_seq,omitempty"`
+	Messages              []Message              `json:"messages,omitempty"`
 }
 
 // SyncResponse is the v2 sync protocol response.
@@ -189,25 +211,29 @@ func (r *SyncRequest) ToConversationObject() *ConversationObject {
 		hasCode = *r.HasCode
 	}
 	return &ConversationObject{
-		Version:           r.Version,
-		Source:            r.Source,
-		Device:            r.Device,
-		SessionID:         r.SessionID,
-		Title:             r.Title,
-		Date:              r.Date,
-		StartedAt:         r.StartedAt,
-		EndedAt:           r.EndedAt,
-		Project:           r.Project,
-		ProjectPath:       r.ProjectPath,
-		Model:             r.Model,
-		MessageCount:      r.MessageCount,
-		WordCount:         r.WordCount,
-		ContentHash:       r.ContentHash,
-		HasCode:           hasCode,
-		TotalInputTokens:  r.TotalInputTokens,
-		TotalOutputTokens: r.TotalOutputTokens,
-		Metadata:          r.Metadata,
-		Messages:          r.Messages,
+		Version:               r.Version,
+		Source:                r.Source,
+		Device:                r.Device,
+		SessionID:             r.SessionID,
+		Title:                 r.Title,
+		Date:                  r.Date,
+		StartedAt:             r.StartedAt,
+		EndedAt:               r.EndedAt,
+		Project:               r.Project,
+		ProjectPath:           r.ProjectPath,
+		Model:                 r.Model,
+		MessageCount:          r.MessageCount,
+		WordCount:             r.WordCount,
+		ContentHash:           r.ContentHash,
+		HasCode:               hasCode,
+		TotalInputTokens:      r.TotalInputTokens,
+		TotalOutputTokens:     r.TotalOutputTokens,
+		CacheReadTokens:       r.CacheReadTokens,
+		CacheCreation5mTokens: r.CacheCreation5mTokens,
+		CacheCreation1hTokens: r.CacheCreation1hTokens,
+		ModelsUsage:           r.ModelsUsage,
+		Metadata:              r.Metadata,
+		Messages:              r.Messages,
 	}
 }
 
@@ -270,6 +296,7 @@ func (s *Store) migrate() error {
 		s.migrateV3,
 		s.migrateV4,
 		s.migrateV5,
+		s.migrateV6,
 	}
 
 	for i := current; i < len(migrations); i++ {
@@ -501,6 +528,75 @@ func (s *Store) migrateV2(tx *sql.Tx) error {
 		}
 	}
 
+	return nil
+}
+
+// migrateV6 promotes cache tokens from the metadata JSON blob to first-class
+// columns, adds a normalized usage_date, a per-(conversation,model) usage rollup
+// table (so per-model + cache-aware cost is queryable even in v2 check/delta
+// mode where messages are absent/partial), the missing analytics indexes, and
+// backfills all of it from existing data.
+func (s *Store) migrateV6(tx *sql.Tx) error {
+	convCols := []string{
+		"ALTER TABLE conversations ADD COLUMN cache_read_tokens INTEGER DEFAULT 0",
+		"ALTER TABLE conversations ADD COLUMN cache_creation_5m_tokens INTEGER DEFAULT 0",
+		"ALTER TABLE conversations ADD COLUMN cache_creation_1h_tokens INTEGER DEFAULT 0",
+		"ALTER TABLE conversations ADD COLUMN usage_date TEXT DEFAULT ''",
+	}
+	for _, stmt := range convCols {
+		if _, err := tx.Exec(stmt); err != nil {
+			if !strings.Contains(err.Error(), "duplicate column") {
+				return fmt.Errorf("migrateV6 alter: %w", err)
+			}
+		}
+	}
+
+	if _, err := tx.Exec(`CREATE TABLE IF NOT EXISTS conversation_model_usage (
+		conversation_id          TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+		model                    TEXT NOT NULL,
+		input_tokens             INTEGER DEFAULT 0,
+		output_tokens            INTEGER DEFAULT 0,
+		cache_read_tokens        INTEGER DEFAULT 0,
+		cache_creation_5m_tokens INTEGER DEFAULT 0,
+		cache_creation_1h_tokens INTEGER DEFAULT 0,
+		PRIMARY KEY (conversation_id, model)
+	)`); err != nil {
+		return fmt.Errorf("migrateV6 rollup table: %w", err)
+	}
+
+	idx := []string{
+		"CREATE INDEX IF NOT EXISTS idx_conv_device ON conversations(device)",
+		"CREATE INDEX IF NOT EXISTS idx_conv_usage_date ON conversations(usage_date)",
+		"CREATE INDEX IF NOT EXISTS idx_cmu_model ON conversation_model_usage(model)",
+		"CREATE INDEX IF NOT EXISTS idx_msg_model ON messages(model)",
+	}
+	for _, stmt := range idx {
+		if _, err := tx.Exec(stmt); err != nil {
+			return fmt.Errorf("migrateV6 index: %w", err)
+		}
+	}
+
+	// Backfill cache columns + usage_date from the metadata blob / started_at.
+	// The old plugin lumps all cache-creation into cache_creation_tokens with no
+	// TTL split, so treat it as 5-minute writes.
+	if _, err := tx.Exec(`UPDATE conversations SET
+		cache_read_tokens        = CAST(COALESCE(json_extract(metadata,'$.cache_read_tokens'),0) AS INTEGER),
+		cache_creation_5m_tokens = CAST(COALESCE(json_extract(metadata,'$.cache_creation_tokens'),0) AS INTEGER),
+		usage_date               = substr(started_at,1,10)`); err != nil {
+		return fmt.Errorf("migrateV6 backfill conversations: %w", err)
+	}
+
+	// Backfill the rollup: one row per conversation, attributed to its primary
+	// model (all tokens; per-model split is unavailable for pre-v6 data).
+	if _, err := tx.Exec(`INSERT OR REPLACE INTO conversation_model_usage
+		(conversation_id, model, input_tokens, output_tokens,
+		 cache_read_tokens, cache_creation_5m_tokens, cache_creation_1h_tokens)
+		SELECT id, COALESCE(NULLIF(model,''),'unknown'),
+			total_input_tokens, total_output_tokens,
+			cache_read_tokens, cache_creation_5m_tokens, cache_creation_1h_tokens
+		FROM conversations`); err != nil {
+		return fmt.Errorf("migrateV6 backfill rollup: %w", err)
+	}
 	return nil
 }
 
@@ -964,6 +1060,12 @@ func (s *Store) Upsert(conv *ConversationObject) error {
 		}
 	}
 
+	cacheRead, cc5m, cc1h := resolveCache(conv.CacheReadTokens, conv.CacheCreation5mTokens, conv.CacheCreation1hTokens, conv.Metadata)
+	if err := writeUsageRollup(tx, id, conv.Model, conv.Date, startedAt,
+		conv.TotalInputTokens, conv.TotalOutputTokens, cacheRead, cc5m, cc1h, conv.ModelsUsage); err != nil {
+		return err
+	}
+
 	if err := tx.Commit(); err != nil {
 		return err
 	}
@@ -1127,6 +1229,12 @@ func (s *Store) applyDelta(req *SyncRequest, id string) error {
 		return fmt.Errorf("update conversation: %w", err)
 	}
 
+	cacheRead, cc5m, cc1h := resolveCache(req.CacheReadTokens, req.CacheCreation5mTokens, req.CacheCreation1hTokens, req.Metadata)
+	if err := writeUsageRollup(tx, id, req.Model, req.Date, startedAt,
+		req.TotalInputTokens, req.TotalOutputTokens, cacheRead, cc5m, cc1h, req.ModelsUsage); err != nil {
+		return err
+	}
+
 	if err := tx.Commit(); err != nil {
 		return err
 	}
@@ -1139,6 +1247,95 @@ func boolToInt(b bool) int {
 		return 1
 	}
 	return 0
+}
+
+// metaInt reads an integer-valued key from a decoded JSON metadata map. JSON
+// numbers decode to float64, so that is the primary case.
+func metaInt(m map[string]interface{}, key string) int {
+	if m == nil {
+		return 0
+	}
+	switch v := m[key].(type) {
+	case float64:
+		return int(v)
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case json.Number:
+		n, _ := v.Int64()
+		return int(n)
+	default:
+		return 0
+	}
+}
+
+// resolveCache picks the conversation's cache token counts. It prefers the
+// Phase-2 top-level fields; if those are all zero it falls back to the pre-v6
+// metadata blob (where flat cache_creation is treated as 5-minute writes). This
+// distinguishes a v6 plugin (sends top-level, even zero) from an older one
+// (omits them, values live in metadata).
+func resolveCache(cacheRead, cc5m, cc1h int, metadata map[string]interface{}) (int, int, int) {
+	if cacheRead != 0 || cc5m != 0 || cc1h != 0 {
+		return cacheRead, cc5m, cc1h
+	}
+	return metaInt(metadata, "cache_read_tokens"), metaInt(metadata, "cache_creation_tokens"), 0
+}
+
+// writeUsageRollup stores promoted cache columns + normalized usage_date on the
+// conversation and rebuilds its conversation_model_usage rows (idempotent
+// delete+reinsert). When models is empty (pre-v6 plugin), it derives a single
+// row attributing all tokens to the primary model. Callers must pass a rollup
+// that is CUMULATIVE over the whole conversation, mirroring total_*_tokens, so
+// the rebuild stays correct in v2 delta mode.
+func writeUsageRollup(tx *sql.Tx, id, model, date, startedAt string,
+	totalIn, totalOut, cacheRead, cc5m, cc1h int, models []ModelUsage) error {
+	usageDate := ""
+	if len(date) >= 10 {
+		usageDate = date[:10]
+	} else if len(startedAt) >= 10 {
+		usageDate = startedAt[:10]
+	}
+
+	if _, err := tx.Exec(`UPDATE conversations SET
+		cache_read_tokens=?, cache_creation_5m_tokens=?, cache_creation_1h_tokens=?, usage_date=?
+		WHERE id=?`, cacheRead, cc5m, cc1h, usageDate, id); err != nil {
+		return fmt.Errorf("update usage columns: %w", err)
+	}
+
+	if _, err := tx.Exec("DELETE FROM conversation_model_usage WHERE conversation_id=?", id); err != nil {
+		return fmt.Errorf("delete model rollup: %w", err)
+	}
+
+	rows := models
+	if len(rows) == 0 {
+		m := model
+		if m == "" {
+			m = "unknown"
+		}
+		rows = []ModelUsage{{Model: m, InputTokens: totalIn, OutputTokens: totalOut,
+			CacheReadTokens: cacheRead, CacheCreation5mTokens: cc5m, CacheCreation1hTokens: cc1h}}
+	}
+
+	stmt, err := tx.Prepare(`INSERT OR REPLACE INTO conversation_model_usage
+		(conversation_id, model, input_tokens, output_tokens,
+		 cache_read_tokens, cache_creation_5m_tokens, cache_creation_1h_tokens)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`)
+	if err != nil {
+		return fmt.Errorf("prepare model rollup: %w", err)
+	}
+	defer stmt.Close()
+	for _, r := range rows {
+		m := r.Model
+		if m == "" {
+			m = "unknown"
+		}
+		if _, err := stmt.Exec(id, m, r.InputTokens, r.OutputTokens,
+			r.CacheReadTokens, r.CacheCreation5mTokens, r.CacheCreation1hTokens); err != nil {
+			return fmt.Errorf("insert model rollup: %w", err)
+		}
+	}
+	return nil
 }
 
 // convColumns is the standard SELECT column list for conversations.
@@ -1490,12 +1687,12 @@ func (s *Store) GetStatsSummary() (*StatsSummary, error) {
 
 // ProjectRow represents aggregated project statistics.
 type ProjectRow struct {
-	Project      string `json:"project"`
-	Conversations int   `json:"conversations"`
-	TotalWords   int    `json:"total_words"`
-	TotalTokensIn  int  `json:"total_tokens_in"`
-	TotalTokensOut int  `json:"total_tokens_out"`
-	LastActivity string `json:"last_activity"`
+	Project        string `json:"project"`
+	Conversations  int    `json:"conversations"`
+	TotalWords     int    `json:"total_words"`
+	TotalTokensIn  int    `json:"total_tokens_in"`
+	TotalTokensOut int    `json:"total_tokens_out"`
+	LastActivity   string `json:"last_activity"`
 }
 
 // ListProjects returns all projects with conversation counts and last activity.
