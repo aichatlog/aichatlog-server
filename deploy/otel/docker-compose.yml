@@ -1,0 +1,57 @@
+# Real-time Claude Code usage/cost observability (OTEL → Prometheus → Grafana).
+# This is the OPTIONAL "Phase 4" complement to the aichatlog-server usage
+# analytics: a live, push-based view for dashboards/alerting. It is independent
+# of aichatlog-server — Claude Code emits OpenTelemetry metrics natively.
+#
+#   docker compose up -d      # then open Grafana at http://localhost:3000
+#   docker compose down       # (add -v to drop Grafana state)
+#
+# Point Claude Code at the collector with the env vars in env.claude-code.example.
+
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.117.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC  ← point Claude Code here
+      - "4318:4318"   # OTLP HTTP
+      - "8889:8889"   # Prometheus scrape target (raw /metrics, handy for debugging)
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=90d"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - otel-collector
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_USERS_DEFAULT_THEME: dark
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  prometheus-data:
+  grafana-data:

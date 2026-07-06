@@ -1,0 +1,46 @@
+# OpenTelemetry Collector config for Claude Code metrics.
+# Receives OTLP from Claude Code, drops unbounded-cardinality attributes, and
+# exposes a Prometheus scrape endpoint on :8889.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch: {}
+  # Claude Code tags every datapoint with session.id/user.id/user.email — these
+  # are unbounded and would explode Prometheus cardinality. Drop them; keep the
+  # useful low-cardinality dimensions (type, model, terminal.type, query_source…).
+  transform/drop_high_cardinality:
+    error_mode: ignore
+    metric_statements:
+      - context: datapoint
+        statements:
+          - delete_key(attributes, "session.id")
+          - delete_key(attributes, "user.id")
+          - delete_key(attributes, "user.email")
+
+exporters:
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    # Clean, predictable names: claude_code_token_usage / claude_code_cost_usage
+    # (no _total / unit suffixes). rate()/increase() still work on counters.
+    add_metric_suffixes: false
+    resource_to_telemetry_conversion:
+      enabled: false
+  debug:
+    verbosity: basic
+
+service:
+  telemetry:
+    logs:
+      level: info
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [transform/drop_high_cardinality, batch]
+      exporters: [prometheus, debug]
