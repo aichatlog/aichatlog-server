@@ -2,6 +2,7 @@ package llm
 
 import (
 	"fmt"
+	"github.com/aichatlog/aichatlog-server/internal/textutil"
 	"strings"
 
 	"github.com/aichatlog/aichatlog-server/internal/storage"
@@ -85,13 +86,12 @@ func BuildUserPrompt(conv *storage.ConversationRow, messages []storage.MessageRo
 		role := strings.ToUpper(m.Role)
 		line := fmt.Sprintf("[%s] %s", role, m.Content)
 
-		words := len(strings.Fields(m.Content))
+		words := textutil.CountWords(m.Content)
 		if maxWords > 0 && wordCount+words > maxWords {
 			remaining := maxWords - wordCount
 			if remaining > 50 {
-				fields := strings.Fields(m.Content)
-				if len(fields) > remaining {
-					line = fmt.Sprintf("[%s] %s ...(truncated)", role, strings.Join(fields[:remaining], " "))
+				if head, cut := textutil.TruncateWords(m.Content, remaining); cut {
+					line = fmt.Sprintf("[%s] %s ...(truncated)", role, head)
 				}
 				parts = append(parts, line)
 			}
