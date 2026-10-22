@@ -91,6 +91,7 @@ func main() {
 			SyncDir:               cfg.Processor.SyncDir,
 			ModelUpgradeThreshold: cfg.LLM.ModelUpgradeThreshold,
 			MaxMonthlyBudget:      int(cfg.LLM.MaxMonthlyBudget),
+			MaxInputWords:         cfg.LLM.MaxInputWords,
 		})
 		log.Printf("  LLM: %s (extraction enabled)", llmAdapter.Name())
 	}
@@ -136,6 +137,7 @@ func main() {
 			SyncDir:               cfg.Processor.SyncDir,
 			ModelUpgradeThreshold: cfg.LLM.ModelUpgradeThreshold,
 			MaxMonthlyBudget:      int(cfg.LLM.MaxMonthlyBudget),
+			MaxInputWords:         cfg.LLM.MaxInputWords,
 		})
 	}
 	handler := api.NewHandler(store, *token, web.DashboardHTML, web.FaviconICO, cfgMgr, extractorIface, extractorFactory)

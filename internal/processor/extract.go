@@ -9,6 +9,7 @@ import (
 	"github.com/aichatlog/aichatlog-server/internal/llm"
 	"github.com/aichatlog/aichatlog-server/internal/output"
 	"github.com/aichatlog/aichatlog-server/internal/storage"
+	"github.com/aichatlog/aichatlog-server/internal/textutil"
 )
 
 // Extractor handles LLM-based knowledge extraction from conversations.
@@ -20,6 +21,7 @@ type Extractor struct {
 	minWords              int
 	modelUpgradeThreshold int
 	maxMonthlyBudget      int
+	maxInputWords         int
 	model                 string
 }
 
@@ -29,6 +31,7 @@ type ExtractorConfig struct {
 	SyncDir               string
 	ModelUpgradeThreshold int
 	MaxMonthlyBudget      int // max extractions per month, 0 = unlimited
+	MaxInputWords         int // words of conversation sent to the LLM, 0 = 6000
 }
 
 // NewExtractor creates a new knowledge extractor. Returns nil if llm is nil.
@@ -48,6 +51,10 @@ func NewExtractor(store *storage.Store, llmAdapter llm.Adapter, outputAdapter ou
 	}
 	modelUpgrade := 4000
 	maxBudget := 0
+	maxInput := 6000
+	if cfg != nil && cfg.MaxInputWords > 0 {
+		maxInput = cfg.MaxInputWords
+	}
 	if cfg != nil {
 		if cfg.ModelUpgradeThreshold > 0 {
 			modelUpgrade = cfg.ModelUpgradeThreshold
@@ -62,6 +69,7 @@ func NewExtractor(store *storage.Store, llmAdapter llm.Adapter, outputAdapter ou
 		minWords:              minWords,
 		modelUpgradeThreshold: modelUpgrade,
 		maxMonthlyBudget:      maxBudget,
+		maxInputWords:         maxInput,
 		model:                 llmAdapter.Name(),
 	}
 }
@@ -95,33 +103,40 @@ func (e *Extractor) ExtractOne(conversationID string) error {
 		return err
 	}
 
-	// Skip short conversations
-	if conv.WordCount < e.minWords {
-		return nil
-	}
-
 	messages, err := e.store.GetMessages(conversationID)
 	if err != nil {
 		return err
 	}
 
-	// Build prompt and call LLM
-	userPrompt := llm.BuildUserPrompt(conv, messages, 6000)
-	rawJSON, err := e.llm.Extract(llm.SystemPrompt(), userPrompt)
-	if err != nil {
-		return fmt.Errorf("LLM extraction: %w", err)
+	// Skip short conversations. Count words from the dialogue itself (CJK-aware)
+	// instead of the client-reported word_count, which splits on spaces only.
+	words := 0
+	for _, m := range messages {
+		if !m.IsContext {
+			words += textutil.CountWords(m.Content)
+		}
+	}
+	if words < e.minWords {
+		return nil
 	}
 
-	// Clean up response (strip markdown fences if present)
-	rawJSON = strings.TrimSpace(rawJSON)
-	rawJSON = strings.TrimPrefix(rawJSON, "```json")
-	rawJSON = strings.TrimPrefix(rawJSON, "```")
-	rawJSON = strings.TrimSuffix(rawJSON, "```")
-	rawJSON = strings.TrimSpace(rawJSON)
-
+	// Build prompt and call LLM; retry once if the reply is not valid JSON
+	// (truncated output or a stray character inside a string).
+	userPrompt := llm.BuildUserPrompt(conv, messages, e.maxInputWords)
 	var result llm.ExtractionResult
-	if err := json.Unmarshal([]byte(rawJSON), &result); err != nil {
-		return fmt.Errorf("parse LLM response: %w (raw: %.200s)", err, rawJSON)
+	for attempt := 1; ; attempt++ {
+		rawJSON, err := e.llm.Extract(llm.SystemPrompt(), userPrompt)
+		if err != nil {
+			return fmt.Errorf("LLM extraction: %w", err)
+		}
+		perr := parseExtraction(rawJSON, &result)
+		if perr == nil {
+			break
+		}
+		if attempt == 2 {
+			return fmt.Errorf("parse LLM response: %w (raw: %.200s)", perr, rawJSON)
+		}
+		log.Printf("extractor: %s returned invalid JSON (%v), retrying", conversationID, perr)
 	}
 
 	// Store extractions
@@ -185,6 +200,20 @@ func (e *Extractor) ExtractOne(conversationID string) error {
 	}
 	log.Printf("extractor: %s → %d extractions (model=%s)", conversationID, count, modelUsed)
 	return nil
+}
+
+// parseExtraction strips markdown fences and any text around the outermost
+// JSON object before decoding.
+func parseExtraction(raw string, out *llm.ExtractionResult) error {
+	raw = strings.TrimSpace(raw)
+	raw = strings.TrimPrefix(raw, "```json")
+	raw = strings.TrimPrefix(raw, "```")
+	raw = strings.TrimSuffix(raw, "```")
+	if i, j := strings.Index(raw, "{"), strings.LastIndex(raw, "}"); i >= 0 && j > i {
+		raw = raw[i : j+1]
+	}
+	*out = llm.ExtractionResult{}
+	return json.Unmarshal([]byte(raw), out)
 }
 
 func (e *Extractor) notePath(category, date, title string) string {

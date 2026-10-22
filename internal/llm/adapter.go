@@ -51,6 +51,7 @@ type Config struct {
 
 	// Extraction settings
 	MinWords              int     `json:"min_words"`
+	MaxInputWords         int     `json:"max_input_words"` // words of conversation sent to the LLM (CJK char = 1 word); default 6000
 	ModelUpgradeThreshold int     `json:"model_upgrade_threshold"`
 	MaxMonthlyBudget      float64 `json:"max_monthly_budget"`
 }
@@ -68,6 +69,8 @@ type OpenAIConfig struct {
 	BaseURL string `json:"base_url"` // default: https://api.openai.com/v1
 	Model   string `json:"model"`    // default: gpt-4o-mini
 	BigModel string `json:"big_model"` // default: gpt-4o
+	MaxTokens       int  `json:"max_tokens"`        // completion limit; default 8192
+	DisableJSONMode bool `json:"disable_json_mode"` // set for endpoints that reject response_format
 }
 
 // NewAdapter creates an LLM adapter from configuration.

@@ -28,7 +28,7 @@ func NewOpenAIAdapter(cfg *OpenAIConfig) Adapter {
 	}
 	return &openaiAdapter{
 		cfg:    cfg,
-		client: &http.Client{Timeout: 120 * time.Second},
+		client: &http.Client{Timeout: 300 * time.Second},
 	}
 }
 
@@ -39,15 +39,24 @@ func (a *openaiAdapter) Extract(systemPrompt, userPrompt string) (string, error)
 }
 
 func (a *openaiAdapter) call(model, systemPrompt, userPrompt string) (string, error) {
-	body, _ := json.Marshal(map[string]interface{}{
+	maxTokens := a.cfg.MaxTokens
+	if maxTokens <= 0 {
+		maxTokens = 8192
+	}
+	payload := map[string]interface{}{
 		"model": model,
 		"messages": []map[string]string{
 			{"role": "system", "content": systemPrompt},
 			{"role": "user", "content": userPrompt},
 		},
 		"temperature": 0,
-		"max_tokens":  4096,
-	})
+		"max_tokens":  maxTokens,
+	}
+	if !a.cfg.DisableJSONMode {
+		// Constrained decoding: the extraction prompt always asks for one JSON object.
+		payload["response_format"] = map[string]string{"type": "json_object"}
+	}
+	body, _ := json.Marshal(payload)
 
 	url := a.cfg.BaseURL + "/chat/completions"
 	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
